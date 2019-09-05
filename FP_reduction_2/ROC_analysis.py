@@ -13,8 +13,8 @@ import sklearn.metrics
 import matplotlib
 import matplotlib.pyplot as plt
 get_ipython().run_line_magic('matplotlib', 'qt5')
-#matplotlib.rcParams['figure.figsize'] = (8.0, 6.0)
-#matplotlib.rcParams['font.size'] = 14
+matplotlib.rcParams['figure.figsize'] = (8.0, 6.0)
+matplotlib.rcParams['font.size'] = 14
 
 #%% load the results file
 results_file = f'final_results/3D_CNN_FP_reduction.csv'
@@ -32,4 +32,4 @@ plt.plot(fpr,tpr,label=f'AUC={auc}')
 plt.legend()
 plt.xlabel(f'FPR')
 plt.ylabel(f'TPR')
-plt.title(f'ROC analysis')
+plt.title(f'Multi-view 2D false positive reduction (3 views)')
