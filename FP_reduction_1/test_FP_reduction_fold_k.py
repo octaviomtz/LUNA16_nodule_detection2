@@ -45,7 +45,7 @@ print(f'Testing fold {fold_k}')
 results_filename = f'test_results_fold{fold_k}.csv'
 
 #%% paths
-cand_path = '/media/se14/DATA/LUNA16/candidates/'
+cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
 out_path = f'results_fold_{fold_k}/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)

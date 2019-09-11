@@ -26,8 +26,8 @@ import SimpleITK as sitk
 import math
 
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.enabled = False
+torch.backends.cudnn.deterministic = False#True
+torch.backends.cudnn.enabled = True#False
 torch.manual_seed(0)
 np.random.seed(0)
 #os.environ["CUDA_LAUNCH_BLOCKING"] = "1"

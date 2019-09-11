@@ -26,8 +26,8 @@ import SimpleITK as sitk
 import math
 
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.enabled = False
+torch.backends.cudnn.deterministic = False#True
+torch.backends.cudnn.enabled = True#False
 torch.manual_seed(0)
 np.random.seed(0)
 #os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -46,7 +46,7 @@ fold_k = int(sys.argv[1])
 print(f'Training fold {fold_k}')
 
 #%% paths
-cand_path = '/media/se14/DATA/LUNA16/candidates/'
+cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
 out_path = f'results_fold_{fold_k}/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
@@ -262,7 +262,7 @@ class lidcCandidateLoader(Dataset):
         currPatch = np.stack((currPatch[30,:,:],currPatch[:,30,:],currPatch[:,:,30]))
         
         # output results
-        currPatch = torch.from_numpy(currPatch).to(dtype=dType)
+        currPatch = torch.from_numpy(currPatch)
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
         sample = {'image': currPatch, 'labels': currLabel, 'candIdx' : idx} # return these values
         
@@ -282,7 +282,8 @@ criterion = torch.nn.BCELoss()
 LR = 1e-4
 optimizer = optim.Adam(model.parameters(),lr = LR)
 ctr = 0
-num_epochs = 100
+num_epochs = 20
+epoch_list = np.array(list(range(10)))
 
 bestValLoss = 1e6
 bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{len(trainData)}_epochs{num_epochs}_LR{LR}.pt'
@@ -292,6 +293,8 @@ allValLoss = np.zeros((num_epochs,1))
 
 optimizer.zero_grad()
 print(model.training)
+
+currModelFilename = f'current_model.pt'
 
 #%% alternative learning rate finder
 findLR = False
@@ -330,7 +333,39 @@ if findLR == True:
 
 #%% main loop
 start = time.time()
-for epoch in range(num_epochs):
+
+# try to load our previous state, if possible
+# find the epoch we were up to
+try:
+    lastEpoch = np.loadtxt(f'{out_path}lastCompletedEpoch.txt').astype('int16').item()
+    epoch_list = epoch_list[epoch_list>lastEpoch]
+except:
+    pass
+
+# load the current model, if it exists
+try:
+    modelToUse = out_path + currModelFilename
+    model = discriminatorNet().load_state_dict(torch.load(modelToUse))
+    model = model.to(device)
+except:
+    pass
+
+# set the torch random state to what it last was
+try:
+    random_state = torch.from_numpy(np.loadtxt(f'{out_path}randomState.txt').astype('uint8'))
+    torch.set_rng_state(random_state)
+except:
+    pass
+
+# load the previous training losses
+try:
+    allValLoss = np.loadtxt(out_path + '/allValLoss.txt')
+    allTrainLoss = np.loadtxt(out_path + '/allTrainLoss.txt')
+except:
+    pass
+
+#%%    
+for epoch in epoch_list:
 
     print(f'Epoch = {epoch}')
     running_loss = 0.0
@@ -387,6 +422,11 @@ for epoch in range(num_epochs):
             torch.save(model.state_dict(),out_path + bestValLossNetFileName)
             np.savetxt(out_path + '/bestEpochNum.txt',np.array([epoch]))
             bestValLoss = allValLoss[epoch]
+            
+    # checkpointing at the end of every epoch
+    torch.save(model.state_dict(),out_path + currModelFilename)
+    np.savetxt(f'{out_path}lastCompletedEpoch.txt',np.asarray([epoch]))
+    np.savetxt(f'{out_path}randomState.txt',torch.get_rng_state().numpy())
 
     model = model.train()
             

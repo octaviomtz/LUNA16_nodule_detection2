@@ -107,7 +107,7 @@ start = time.time()
 timing_file = 'cand_save_progress/timings.txt'
 
 # for each fold, get the series ids
-for kk in range(len(subset_dir)):
+for kk in range(8,10):#range(len(subset_dir)):
     print(kk)
     curr_dir = subset_dir[kk]
     if not os.path.exists(out_path + curr_dir): os.makedirs(out_path + curr_dir)
