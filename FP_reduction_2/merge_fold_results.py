@@ -15,7 +15,7 @@ out_foldr = 'final_results/'
 if (not os.path.exists(out_foldr)) & (out_foldr != ""): 
     os.makedirs(out_foldr)
 
-out_filename = '3D_CNN_FP_reduction.csv'
+out_filename = 'Multi-view_2D_CNN_FP_reduction.csv'
 all_results_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','probability'])
 
 for fold_k in range(10):

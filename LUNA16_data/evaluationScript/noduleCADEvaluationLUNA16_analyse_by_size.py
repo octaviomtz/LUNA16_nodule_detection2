@@ -577,6 +577,7 @@ if __name__ == '__main__':
     allResults = np.vstack((all_size_threshs,CPM))
     np.savetxt(outputDir + '/CPM.txt',np.transpose(allResults))
     
+    plt.figure()
     plt.plot(all_size_threshs,CPM)
     plt.xlabel('Nodule diameter threshold')
     plt.ylabel('CPM')
