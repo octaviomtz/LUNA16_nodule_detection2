@@ -367,15 +367,20 @@ model = model.to(device)
 model = model.eval()
 
 #%% set up dataloader
-batch_size = 256
+batch_size = 12
 testData = lidcCandidateLoader(test_subset_folders,augmentFlag=False,balanceFlag=False)
 test_dataloader = DataLoader(testData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
 
 #%% perform the test
 results_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','probability'])
 with torch.no_grad():
+    print('Starting the loop')
 
     for i, data in enumerate(test_dataloader, 0):
+        print(f'{i} of {len(test_dataloader)}')
+        
+        if np.mod(i,10) == 0:
+            time.sleep(0.1) # try to stop overworked cpu by pausing
 
         inputs, labels = data['image'],data['labels']
         inputs = inputs.to(device)

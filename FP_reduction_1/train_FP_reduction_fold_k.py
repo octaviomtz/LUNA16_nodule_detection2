@@ -393,7 +393,7 @@ LR = 5e-5
 optimizer = optim.Adam(model.parameters(),lr = LR)
 ctr = 0
 num_epochs = 10
-epoch_list = np.array(list(range(10)))
+epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6
 bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{len(trainData)}_epochs{num_epochs}_LR{LR}.pt'
