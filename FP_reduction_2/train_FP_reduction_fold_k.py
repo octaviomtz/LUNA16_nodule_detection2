@@ -164,7 +164,7 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,augmentFlag,balanceFlag):
+    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
         cand_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
@@ -183,14 +183,23 @@ class lidcCandidateLoader(Dataset):
             true_df_aug = pd.concat([true_df]*numRepeats)[0:len(false_df)]
             
             cand_df = true_df_aug.append(false_df,ignore_index=False,sort=False).reset_index(drop=True)
-        
-        self.cand_df = cand_df
-        
+                
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
             self.augmentFlag = True
         else:
             self.augmentFlag = False
+            
+        # shuffle repeatably
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
+            
+        # pull out n examples only if possible
+        try:
+            cand_df = cand_df.iloc[0:n]
+        except:
+            pass
+        
+        self.cand_df = cand_df
         
     def __len__(self):
         return len(self.cand_df)
@@ -270,10 +279,10 @@ class lidcCandidateLoader(Dataset):
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
+trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True,n=10000)
 train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 15,pin_memory=True)
 
-valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
+valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False,n=1000)
 val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 15,pin_memory=True)
 
 
@@ -283,7 +292,7 @@ LR = 1e-4
 optimizer = optim.Adam(model.parameters(),lr = LR)
 ctr = 0
 num_epochs = 20
-epoch_list = np.array(list(range(10)))
+epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6
 bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{len(trainData)}_epochs{num_epochs}_LR{LR}.pt'

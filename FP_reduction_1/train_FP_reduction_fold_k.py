@@ -261,7 +261,7 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,augmentFlag,balanceFlag):
+    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
         cand_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
@@ -280,14 +280,23 @@ class lidcCandidateLoader(Dataset):
             true_df_aug = pd.concat([true_df]*numRepeats)[0:len(false_df)]
             
             cand_df = true_df_aug.append(false_df,ignore_index=False,sort=False).reset_index(drop=True)
-        
-        self.cand_df = cand_df
-        
+                
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
             self.augmentFlag = True
         else:
             self.augmentFlag = False
+            
+        # shuffle repeatably
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
+            
+        # pull out n examples only if possible
+        try:
+            cand_df = cand_df.iloc[0:n]
+        except:
+            pass
+        
+        self.cand_df = cand_df
         
     def __len__(self):
         return len(self.cand_df)
