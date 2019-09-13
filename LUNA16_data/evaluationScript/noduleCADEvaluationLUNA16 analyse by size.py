@@ -131,16 +131,16 @@ def computeFROC(FROCGTList, FROCProbList, totalNumberOfImages, excludeList, FROC
                 FROCGTList_local.append(FROCGTList[i])
                 FROCProbList_local.append(FROCProbList[i])
             
-    print('Check lengths of GT and Prob local (number of candidates with scores)')
-    print(len(FROCGTList_local))
-    print(len(FROCProbList_local))
-    print(len(excludeList))
-    print(len(FROCGTList)) 
-    
-    print('Check the sum of GT local and GT total')
-    print(sum(FROCGTList)) # this is the original data
-    print(sum(FROCGTList_thresh)) # this is the data thresholded by radius of nodule
-    print(sum(FROCGTList_local))
+#    print('Check lengths of GT and Prob local (number of candidates with scores)')
+#    print(len(FROCGTList_local))
+#    print(len(FROCProbList_local))
+#    print(len(excludeList))
+#    print(len(FROCGTList)) 
+#    
+#    print('Check the sum of GT local and GT total')
+#    print(sum(FROCGTList)) # this is the original data
+#    print(sum(FROCGTList_thresh)) # this is the data thresholded by radius of nodule
+#    print(sum(FROCGTList_local))
     
     numberOfDetectedLesions = sum(FROCGTList_local)
     totalNumberOfLesions = sum(FROCGTList_thresh)
