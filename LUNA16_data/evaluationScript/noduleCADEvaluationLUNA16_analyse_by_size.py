@@ -579,7 +579,7 @@ if __name__ == '__main__':
     
     plt.figure()
     plt.plot(all_size_threshs,CPM)
-    plt.xlabel('Nodule diameter threshold')
+    plt.xlabel('Nodule diameter threshold, mm')
     plt.ylabel('CPM')
     plt.grid(b=True, which='both')
     plt.tight_layout()
