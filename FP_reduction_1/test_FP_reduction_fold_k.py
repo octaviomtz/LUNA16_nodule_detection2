@@ -55,6 +55,10 @@ test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(tes
 
 results_filename = out_path + results_filename
 
+if os.path.exists(results_filename):
+    print('Results already exist, exiting...')
+    sys.exit(1)
+
 #%% network architecture for FP reduction
 # Cheng et al LUNA16 paper
 def conv3dBasic(ni, nf, ks, stride,padding = 0):
