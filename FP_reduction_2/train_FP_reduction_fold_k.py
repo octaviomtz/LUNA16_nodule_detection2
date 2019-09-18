@@ -301,7 +301,6 @@ allTrainLoss = np.zeros((num_epochs,1))
 allValLoss = np.zeros((num_epochs,1))
 
 optimizer.zero_grad()
-print(model.training)
 
 currModelFilename = f'current_model.pt'
 
