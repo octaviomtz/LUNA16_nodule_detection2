@@ -344,38 +344,30 @@ start = time.time()
 
 # try to load our previous state, if possible
 # find the epoch we were up to
-try:
+if os.path.exists(f'{out_path}lastCompletedEpoch.txt'):
     lastEpoch = np.loadtxt(f'{out_path}lastCompletedEpoch.txt').astype('int16').item()
     epoch_list = epoch_list[epoch_list>lastEpoch]
     print('Found previous progress, amended epoch list')
-except:
-    pass
 
 # load the current model, if it exists
-try:
-    modelToUse = out_path + currModelFilename
+modelToUse = out_path + currModelFilename
+if os.path.exists(modelToUse):
     model = discriminatorNet()
     model.load_state_dict(torch.load(modelToUse))
     model = model.to(device)
     print('Loaded previous model')
-except:
-    pass
 
 # set the torch random state to what it last was
-try:
+if os.path.exists(f'{out_path}randomState.txt'):
     random_state = torch.from_numpy(np.loadtxt(f'{out_path}randomState.txt').astype('uint8'))
     torch.set_rng_state(random_state)
     print('Loaded torch random state')
-except:
-    pass
 
 # load the previous training losses
-try:
+if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/allTrainLoss.txt'):
     allValLoss = np.loadtxt(out_path + '/allValLoss.txt')
     allTrainLoss = np.loadtxt(out_path + '/allTrainLoss.txt')
     print('Loaded previous loss history')
-except:
-    pass
 
 print(f'model.training = {model.training}')
 
