@@ -42,7 +42,7 @@ dType = torch.float32
 
 # get the current fold from the command line input. 
 # for fold k, we use the kth subset as the test, and train on the remaining data
-fold_k = 2#int(sys.argv[1])
+fold_k = int(sys.argv[1])
 print(f'Training fold {fold_k}')
 
 #%% paths
