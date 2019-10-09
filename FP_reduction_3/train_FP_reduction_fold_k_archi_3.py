@@ -51,7 +51,7 @@ except:
 
 #%% paths
 cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-out_path = f'results_fold_{fold_k}_archi_1/'
+out_path = f'results_fold_{fold_k}_archi_3/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
 
@@ -82,22 +82,25 @@ def conv3dBasic(ni, nf, ks, stride,padding = 0):
             nn.ReLU(inplace=True),
             nn.BatchNorm3d(nf))
     
-class discriminatorNet_archi_1(nn.Module):
+class discriminatorNet_archi_3(nn.Module):
     def __init__(self):
         super().__init__()
         
         # modules
         self.C1 = conv3dBasic(1, 64, 5, 1, 2)
+        self.M1 = nn.MaxPool3d(2)
         self.C2 = conv3dBasic(64, 64, 5, 1, 2)
         self.C3 = conv3dBasic(64, 64, 5, 1, 2)
         self.D1 = conv3dBasic(64, 64, 5, 2, 2) #  downsample
-        self.FC1 = nn.Linear(64000, 150)
-        self.FC2 = nn.Linear(150,1)
+        self.FC1 = nn.Linear(64000, 250)
+        self.FC2 = nn.Linear(250,1)
         
     def forward(self, x):
         
         print(x.shape)
         x = self.C1(x)
+        print(x.shape)
+        x = self.M1(x)
         print(x.shape)
         x = self.C2(x)
         print(x.shape)
@@ -114,10 +117,11 @@ class discriminatorNet_archi_1(nn.Module):
 
         return x
     
-model_1 = discriminatorNet_archi_1()
-model_1 = model_1.to(dtype=dType).to(device)
+model_3 = discriminatorNet_archi_3()
+model_3 = model_3.to(dtype=dType).to(device)
 
-print(f'{len(getParams(model_1))} parameters')
+print(f'{len(getParams(model_3))} parameters')
+
     
 # initialization function, first checks the module type,
 # then applies the desired changes to the weights
@@ -273,19 +277,19 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
-        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+#        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
 #        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
-#        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
+        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
         
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
-        sample = {'image1': currPatch1, 'labels': currLabel, 'candIdx' : idx} # return these values
+        sample = {'image3': currPatch3, 'labels': currLabel, 'candIdx' : idx} # return these values
         
         return sample
 
 #%% set up dataloader
-batch_size = 256
+batch_size = 64
 trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
 train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
@@ -295,7 +299,7 @@ val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num
 
 #%% set up training
 criterion = torch.nn.BCELoss()
-optimizer_1 = optim.Adam(model_1.parameters(),lr = 6e-6)
+optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
 ctr = 0
 num_epochs = 1
 epoch_list = np.array(list(range(num_epochs)))
@@ -306,7 +310,7 @@ bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{l
 allTrainLoss = np.zeros((num_epochs,1))
 allValLoss = np.zeros((num_epochs,1))
 
-optimizer_1.zero_grad()
+optimizer_3.zero_grad()
 
 
 currModelFilename = f'current_model.pt'
@@ -322,11 +326,11 @@ if findLR == True:
     
     data = next(iter(train_dataloader))
     # get the inputs
-    inputs, labels = data['image1'],data['labels']
+    inputs, labels = data['image3'],data['labels']
     inputs = inputs.to(device)
     labels = labels.to(device)
     
-    model_tmp2 = discriminatorNet_archi_1()
+    model_tmp2 = discriminatorNet_archi_3()
     model_tmp2 = model_tmp2.to(dtype=dType).to(device)
     
     for ii, lr in enumerate(allLRs):
@@ -345,7 +349,7 @@ if findLR == True:
     
     plt.figure()    
     plt.semilogx(allLRs,LRfinderLoss)
-    plt.title('archi-1')
+    plt.title('archi-3')
     
 #%% main loop
 start = time.time()
@@ -360,9 +364,9 @@ if os.path.exists(f'{out_path}lastCompletedEpoch.txt'):
 # load the current model, if it exists
 modelToUse = out_path + currModelFilename
 if os.path.exists(modelToUse):
-    model_1 = discriminatorNet_archi_1()
-    model_1.load_state_dict(torch.load(modelToUse))
-    model_1 = model_1.to(device)
+    model_3 = discriminatorNet_archi_3()
+    model_3.load_state_dict(torch.load(modelToUse))
+    model_3 = model_3.to(device)
     print('Loaded previous model')
 
 # set the torch random state to what it last was
@@ -377,7 +381,7 @@ if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/
     allTrainLoss = np.loadtxt(out_path + '/allTrainLoss.txt')
     print('Loaded previous loss history')
 
-print(f'model_1.training = {model_1.training}')
+print(f'model_3.training = {model_3.training}')
 
 #%%               
 for epoch in epoch_list:
@@ -389,19 +393,19 @@ for epoch in epoch_list:
     for i, data in enumerate(train_dataloader, 0):
         print(f'{i} of {len(train_dataloader)}')
         # get the inputs
-        inputs, labels = data['image1'],data['labels']
+        inputs, labels = data['image3'],data['labels']
         inputs = inputs.to(device)
         labels = labels.to(device)
 
         # forward + backward + optimize (every numAccum iterations)
-        outputs = model_1(inputs) # forward pass
+        outputs = model_3(inputs) # forward pass
         loss = criterion(outputs[:,0], labels) # calculate loss
         print(f'Batch loss = {loss.item()}')
 
         loss.backward() # backprop the loss to each weight to get gradients
         
-        optimizer_1.step() # take a step in this direction according to our optimiser
-        optimizer_1.zero_grad()
+        optimizer_3.step() # take a step in this direction according to our optimiser
+        optimizer_3.zero_grad()
         
         running_loss += loss.item() # item() gives the value in a tensor
     allTrainLoss[epoch] = running_loss/len(train_dataloader)        
@@ -409,19 +413,19 @@ for epoch in epoch_list:
         
     print('Validate')
     with torch.no_grad():
-        model = model_1.eval()
+        model = model_3.eval()
         valLoss = 0.0
         for i, data in enumerate(val_dataloader,0):
             
             print(f'{i} of {len(val_dataloader)}')
             loss = 0.
             # get the inputs
-            inputs, labels, valIdx = data['image1'],data['labels'],data['candIdx']
+            inputs, labels, valIdx = data['image3'],data['labels'],data['candIdx']
             inputs = inputs.to(device)
             labels = labels.to(device)
     
             # calculate loss
-            outputs = model_1(inputs) # forward pass
+            outputs = model_3(inputs) # forward pass
             loss = criterion(outputs[:,0], labels).cpu().detach().numpy() # calculate loss
             print(f'Validation loss = {loss.item()}')
             
@@ -434,16 +438,16 @@ for epoch in epoch_list:
         
         if allValLoss[epoch] < bestValLoss:
             print(f'Best seen validation performance ({bestValLoss} -> {allValLoss[epoch]}), saving...')
-            torch.save(model_1.state_dict(),out_path + bestValLossNetFileName)
+            torch.save(model_3.state_dict(),out_path + bestValLossNetFileName)
             np.savetxt(out_path + '/bestEpochNum.txt',np.array([epoch]))
             bestValLoss = allValLoss[epoch]
     
     # checkpointing at the end of every epoch
-    torch.save(model_1.state_dict(),out_path + currModelFilename)
+    torch.save(model_3.state_dict(),out_path + currModelFilename)
     np.savetxt(f'{out_path}lastCompletedEpoch.txt',np.asarray([epoch]))
     np.savetxt(f'{out_path}randomState.txt',torch.get_rng_state().numpy())
 
-    model_1 = model_1.train()
+    model_3 = model_3.train()
             
     print(f'Epoch = {epoch} finished')
 print('Finished Training')
