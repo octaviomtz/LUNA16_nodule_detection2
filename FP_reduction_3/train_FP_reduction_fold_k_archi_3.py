@@ -97,22 +97,22 @@ class discriminatorNet_archi_3(nn.Module):
         
     def forward(self, x):
         
-        print(x.shape)
+#        print(x.shape)
         x = self.C1(x)
-        print(x.shape)
+#        print(x.shape)
         x = self.M1(x)
-        print(x.shape)
+#        print(x.shape)
         x = self.C2(x)
-        print(x.shape)
+#        print(x.shape)
         x = self.C3(x)
-        print(x.shape)
+#        print(x.shape)
         x = self.D1(x)
-        print(x.shape)
-        print(x.view(x.shape[0],-1).shape)
+#        print(x.shape)
+#        print(x.view(x.shape[0],-1).shape)
         x = self.FC1(x.view(x.shape[0],-1))
-        print(x.shape)
+#        print(x.shape)
         x = self.FC2(x)
-        print(x.shape)
+#        print(x.shape)
         x = torch.sigmoid(x)
 
         return x
@@ -205,8 +205,8 @@ class lidcCandidateLoader(Dataset):
         self.cand_df = cand_df
         
     def __len__(self):
-        return 1000
-#        return len(self.cand_df)
+#        return 1000
+        return len(self.cand_df)
     
     def __getitem__(self,idx):
         currFileName = self.cand_df.iloc[idx]['filename']
