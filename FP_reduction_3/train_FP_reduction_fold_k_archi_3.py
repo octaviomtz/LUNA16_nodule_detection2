@@ -301,7 +301,7 @@ val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num
 criterion = torch.nn.BCELoss()
 optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
 ctr = 0
-num_epochs = 1
+num_epochs = 2
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6
@@ -377,8 +377,13 @@ if os.path.exists(f'{out_path}randomState.txt'):
 
 # load the previous training losses
 if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/allTrainLoss.txt'):
-    allValLoss = np.loadtxt(out_path + '/allValLoss.txt')
-    allTrainLoss = np.loadtxt(out_path + '/allTrainLoss.txt')
+    allValLoss_tmp = np.loadtxt(out_path + '/allValLoss.txt')
+    allTrainLoss_tmp = np.loadtxt(out_path + '/allTrainLoss.txt')
+    
+    # populate new array to preserve the epoch number (we might re-run with a higher epoch number to continue training)
+    allTrainLoss[0:allTrainLoss_tmp.size] = allTrainLoss_tmp
+    allValLoss[0:allValLoss_tmp.size] = allValLoss_tmp
+    
     print('Loaded previous loss history')
 
 print(f'model_3.training = {model_3.training}')
