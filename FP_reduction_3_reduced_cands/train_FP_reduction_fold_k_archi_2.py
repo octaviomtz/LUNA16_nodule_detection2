@@ -320,14 +320,14 @@ val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num
 criterion = torch.nn.BCELoss()
 optimizer_2 = optim.Adam(model_2.parameters(),lr = 1e-5)
 ctr = 0
-num_epochs = 2
+num_epochs = 5
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6
 bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{len(trainData)}_epochs{num_epochs}_LR{LR}.pt'
 
-allTrainLoss = np.zeros((num_epochs,1))
-allValLoss = np.zeros((num_epochs,1))
+allTrainLoss = np.zeros((num_epochs))
+allValLoss = np.zeros((num_epochs))
 
 optimizer_2.zero_grad()
 
