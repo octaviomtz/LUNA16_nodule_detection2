@@ -175,7 +175,8 @@ class lidcCandidateLoader(Dataset):
         
         cand_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
         for fldr in data_folders:
-            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
+            csvfiles = f'cand_df_{fldr[-2]}.csv'
+#            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
                         
