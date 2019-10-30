@@ -42,197 +42,105 @@ dType = torch.float32
 
 # get the current fold from the command line input. 
 # for fold k, we use the kth subset as the test, and train on the remaining data
-fold_k = int(sys.argv[1])
-print(f'Training fold {fold_k}')
+try:
+    fold_k = int(sys.argv[1])
+    print(f'Training fold {fold_k}')
+except:
+    print('Defaulting the fold to 0')
+    fold_k = 0
 
 #%% paths
 cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-out_path = f'results_fold_{fold_k}/'
+aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_nods/' # the path to the augmented nodules
+out_path = f'augmented/results_fold_{fold_k}_archi_1/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
 
+train_aug_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
+train_aug_subset_folders = [aug_cand_path + train_aug_subset_folders[i] for i in range(len(train_aug_subset_folders))]
+
 test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x==fold_k]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
 
 # set the validation subset
 val_subset_folders = [train_subset_folders[fold_k-1]]
+val_aug_subset_folders = [train_aug_subset_folders[fold_k-1]]
 
 # and then remove this from the training subsets
 train_subset_folders.remove(val_subset_folders[0]) 
+train_aug_subset_folders.remove(val_aug_subset_folders[0]) 
 
 #%% network architecture for FP reduction
-# Cheng et al LUNA16 paper
+def getParams(model):
+    a = list(model.parameters())
+    b = [a[i].detach().cpu().numpy() for i in range(len(a))]
+    c = [b[i].flatten() for i in range(len(b))]
+    d = np.hstack(c)
+
+    return d
+
 def conv3dBasic(ni, nf, ks, stride,padding = 0):
     return nn.Sequential(
             nn.Conv3d(ni, nf, kernel_size = (ks, ks, ks), bias = True, stride = stride, padding = padding),
             nn.ReLU(inplace=True),
             nn.BatchNorm3d(nf))
     
-class discriminatorNet(nn.Module):
+class discriminatorNet_archi_1(nn.Module):
     def __init__(self):
-        super().__init__() 
-        # first block convolutions
-        self.block1_L1 = conv3dBasic(1, 24, 3, 2, 1)
-        self.block1_L2 = conv3dBasic(24, 32, 3, 1, 1)
-        self.block1_R = conv3dBasic(1, 32, 1, 2, 0)
+        super().__init__()
         
-        # second block convolutions
-        self.block2_L1 = conv3dBasic(32, 48, 3, 1, 1)
-        self.block2_L2 = conv3dBasic(48, 48, 3, 1, 1)
-        self.block2_R = conv3dBasic(32, 48, 1, 1, 0)
-        
-        # 3rd block
-        self.block3_1 = conv3dBasic(48, 48, 3, 1, 1)
-        self.block3_2 = conv3dBasic(48, 48, 3, 1, 1)
-        
-        # 4th block
-        self.block4_L1 = conv3dBasic(48, 64, 3, 2, 1)
-        self.block4_L2 = conv3dBasic(64, 64, 3, 1, 1)
-        self.block4_R = conv3dBasic(48, 64, 1, 2, 0)
-        
-        # 5th block
-        self.block5_L1 = conv3dBasic(64, 96, 3, 1, 1)
-        self.block5_L2 = conv3dBasic(96, 96, 3, 1, 1)
-        self.block5_R = conv3dBasic(64, 96, 1, 1, 0)
-        
-        # 6th block
-        self.block6_L1 = conv3dBasic(96, 96, 3, 1, 1)
-        self.block6_L2 = conv3dBasic(96, 96, 3, 1, 1)
-        self.block6_R = conv3dBasic(96, 96, 1, 1, 0)
-        
-        # 7th block
-        self.block7_1 = conv3dBasic(96, 96, 3, 1, 1)
-        self.block7_2 = conv3dBasic(96, 96, 3, 1, 1)
-        
-        # 8th block
-        self.block8_L1 = conv3dBasic(96, 128, 3, 2, 1)
-        self.block8_L2 = conv3dBasic(128, 128, 3, 1, 1)
-        self.block8_R = conv3dBasic(96, 128, 1, 2, 0)
-        
-        # 9th block
-        self.block9_L1 = conv3dBasic(128, 128, 3, 1, 1)
-        self.block9_L2 = conv3dBasic(128, 128, 3, 1, 1)
-        self.block9_R = conv3dBasic(128, 128, 1, 1, 0)
-        
-        # 10th block
-        self.block10_1 = conv3dBasic(128, 128, 3, 1, 1)
-        self.block10_2 = conv3dBasic(128, 128, 3, 1, 1)
-        
-        self.testFC = nn.Sequential(nn.Linear(5*5*5*128,128),nn.ReLU(inplace=True))
-        
-        # 11th block - have a global average pool to give a 128 vector, then we
-        # fully connect this to a 2-element softmax
-#        self.block11_2 = nn.Linear(128, 2)
-        self.block11_2 = nn.Linear(128, 1) # for single-value output
-        
-        # experimental dropout layers
-        self.dropout1 = nn.Dropout3d(p=0.5)
-        self.dropout2 = nn.Dropout3d(p=0.6)
-        self.dropout3 = nn.Dropout3d(p=0.5)
+        # modules
+        self.C1 = conv3dBasic(1, 64, 5, 1, 2)
+        self.C2 = conv3dBasic(64, 64, 5, 1, 2)
+        self.C3 = conv3dBasic(64, 64, 5, 1, 2)
+        self.D1 = conv3dBasic(64, 64, 5, 2, 2) #  downsample
+        self.FC1 = nn.Linear(64000, 150)
+        self.FC2 = nn.Linear(150,1)
         
     def forward(self, x):
         
-        # 1st block
-        xL = self.block1_L1(x)
-        xL = self.block1_L2(xL)
-        xR = self.block1_R(x)
-        x = xL + xR
+#        print(x.shape)
+        x = self.C1(x)
+#        print(x.shape)
+        x = self.C2(x)
+#        print(x.shape)
+        x = self.C3(x)
+#        print(x.shape)
+        x = self.D1(x)
+#        print(x.shape)
+#        print(x.view(x.shape[0],-1).shape)
+        x = self.FC1(x.view(x.shape[0],-1))
+#        print(x.shape)
+        x = self.FC2(x)
+#        print(x.shape)
+        x = torch.sigmoid(x)
 
-        # 2nd block
-        xL = self.block2_L1(x)
-        xL = self.block2_L2(xL)
-        xR = self.block2_R(x)
-        x = xL + xR
-
-        # 3rd block
-        x1 = self.block3_1(x)
-        x1 = self.block3_2(x1)
-        x = x + x1
-
-        # 4th block
-        xL = self.block4_L1(x)
-        xL = self.block4_L2(xL)
-        xR = self.block4_R(x)
-        x = xL + xR
-
-        # 5th block
-        xL = self.block5_L1(x)
-        xL = self.block5_L2(xL)
-        xR = self.block5_R(x)
-        x = xL + xR
-        
-#        # experimental dropout---------
-#        x = self.dropout1(x) 
-#        #-----------------------------
-
-        # 6th block
-        xL = self.block6_L1(x)
-        xL = self.block6_L2(xL)
-        xR = self.block6_R(x)
-        x = xL + xR
-
-        # 7th block
-        x1 = self.block7_1(x)
-        x1 = self.block7_2(x1)
-        x = x + x1     
-
-        # 8th block
-        xL = self.block8_L1(x)
-        xL = self.block8_L2(xL)
-        xR = self.block8_R(x)
-        x = xL + xR
-
-        # 9th block
-        xL = self.block9_L1(x)
-        xL = self.block9_L2(xL)
-        xR = self.block9_R(x)
-        x = xL + xR
-
-        # 10th block
-        x1 = self.block10_1(x)
-        x1 = self.block10_2(x1)
-        x = x + x1  
-        
-#        # experimental dropout---------
-#        x = self.dropout2(x) 
-#        #-----------------------------
-
-        # 11th block
-        x = x.view(x.size(0),x.size(1),-1)
-        x = torch.mean(x, dim=2) #GlobalAveragePool (average in each channel)
-        # experimental FC layer
-#        x = self.dropout3(x)
-#        x = x.view(x.size(0),-1)
-#        x = self.testFC(x)
-        
-        x = self.block11_2(x)
-        
-        # we can include these functions in the loss function to save computations
-        # but here we do not
-#        x = F.softmax(x,dim=1)
-        x = torch.sigmoid(x).view(-1) # for single value output
-                
         return x
+    
+model_1 = discriminatorNet_archi_1()
+model_1 = model_1.to(dtype=dType).to(device)
+
+print(f'{len(getParams(model_1))} parameters')
     
 # initialization function, first checks the module type,
 # then applies the desired changes to the weights
-def init_net(m):
-    if (type(m) == nn.Linear) or (type(m) == nn.modules.conv.Conv3d):
-        nn.init.kaiming_uniform_(m.weight)
-        
-    if hasattr(m, 'bias'):
-        try:
-            nn.init.constant_(m.bias,0.0)
-        except:
-            pass
+#def init_net(m):
+#    if (type(m) == nn.Linear) or (type(m) == nn.modules.conv.Conv3d):
+#        nn.init.kaiming_uniform_(m.weight)
+#        
+#    if hasattr(m, 'bias'):
+#        try:
+#            nn.init.constant_(m.bias,0.0)
+#        except:
+#            pass
 
     
-model = discriminatorNet()
-model = model.to(dtype=dType)
-model = model.apply(init_net).to(device)
+#model = discriminatorNet()
+#model = model.to(dtype=dType)
+#model = model.apply(init_net).to(device)
 #image = torch.zeros((1,1,40,40,40)).to(dtype=dType).to(device)
 #out = model(image)
 #print(out)
@@ -261,9 +169,11 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
+    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
+        
+        # aug_data_folders are the folders containing the augmented nodules (so we know that these are trues)
         
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
@@ -277,9 +187,20 @@ class lidcCandidateLoader(Dataset):
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
-                        
-        true_df = cand_df.loc[cand_df['class']==1]
-        false_df = cand_df.loc[cand_df['class']==0]
+            
+        true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
+        false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
+        
+        # add the augmented nodules to the dataframe, leaving irrelevant columns empty
+        try:
+            for fldr in aug_data_folders:
+                tmp_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
+                tmp_df['filename'] = [fldr + file for file in os.listdir(fldr)]
+                tmp_df['class'] = 1
+                true_df = true_df.append(tmp_df)
+            print('Added augmented nodules to the dataframe')
+        except:
+            pass
 
         num_trues = len(true_df)
         num_falses = len(false_df)
@@ -314,13 +235,13 @@ class lidcCandidateLoader(Dataset):
             cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
 
         # shuffle repeatably
-        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k).reset_index(drop=True)
              
         self.cand_df = cand_df
         
     def __len__(self):
+#        return 1000
         return len(self.cand_df)
-#        return 2
     
     def __getitem__(self,idx):
         currFileName = self.cand_df.iloc[idx]['filename']
@@ -391,28 +312,31 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
+        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+#        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
+#        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
+        
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
-        sample = {'image': currPatch, 'labels': currLabel, 'candIdx' : idx} # return these values
+        sample = {'image1': currPatch1, 'labels': currLabel, 'candIdx' : idx} # return these values
         
         return sample
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True,n=100000)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 12,pin_memory=True)
+trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
-valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
+valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
 val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
 
 
 #%% set up training
 criterion = torch.nn.BCELoss()
-LR = 5e-5
-optimizer = optim.Adam(model.parameters(),lr = LR)
+optimizer_1 = optim.Adam(model_1.parameters(),lr = 6e-6)
 ctr = 0
-num_epochs = 10
+num_epochs = 1
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6
@@ -421,12 +345,14 @@ bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{l
 allTrainLoss = np.zeros((num_epochs,1))
 allValLoss = np.zeros((num_epochs,1))
 
-optimizer.zero_grad()
+optimizer_1.zero_grad()
+
 
 currModelFilename = f'current_model.pt'
 
-#%% alternative learning rate finder
+#%% alternative learning rate finders
 findLR = False
+#findLR = True
 if findLR == True:
     print('LR finder')
 
@@ -435,20 +361,19 @@ if findLR == True:
     
     data = next(iter(train_dataloader))
     # get the inputs
-    inputs, labels = data['image'],data['labels']
+    inputs, labels = data['image1'],data['labels']
     inputs = inputs.to(device)
     labels = labels.to(device)
     
-    model2 = discriminatorNet()
-    model2 = model2.to(dtype=dType)
-    model2 = model2.apply(init_net).to(device)
+    model_tmp2 = discriminatorNet_archi_1()
+    model_tmp2 = model_tmp2.to(dtype=dType).to(device)
     
     for ii, lr in enumerate(allLRs):
-        optimizer2 = optim.Adam(model2.parameters(),lr = allLRs[ii])
+        optimizer2 = optim.Adam(model_tmp2.parameters(),lr = allLRs[ii])
         
         # forward + backward + optimize (every numAccum iterations)
-        outputs = model2(inputs) # forward pass
-        loss = criterion(outputs, labels) # calculate loss
+        outputs = model_tmp2(inputs) # forward pass
+        loss = criterion(outputs[:,0], labels) # calculate loss
         print(f'Batch loss = {loss.item()}')
         
         loss.backward() # backprop the loss to each weight to get gradients
@@ -456,10 +381,11 @@ if findLR == True:
         optimizer2.zero_grad()
 
         LRfinderLoss[ii] = loss.item()
-        
+    
+    plt.figure()    
     plt.semilogx(allLRs,LRfinderLoss)
-
-
+    plt.title('archi-1')
+    
 #%% main loop
 start = time.time()
 
@@ -473,9 +399,9 @@ if os.path.exists(f'{out_path}lastCompletedEpoch.txt'):
 # load the current model, if it exists
 modelToUse = out_path + currModelFilename
 if os.path.exists(modelToUse):
-    model = discriminatorNet()
-    model.load_state_dict(torch.load(modelToUse))
-    model = model.to(device)
+    model_1 = discriminatorNet_archi_1()
+    model_1.load_state_dict(torch.load(modelToUse))
+    model_1 = model_1.to(device)
     print('Loaded previous model')
 
 # set the torch random state to what it last was
@@ -486,11 +412,16 @@ if os.path.exists(f'{out_path}randomState.txt'):
 
 # load the previous training losses
 if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/allTrainLoss.txt'):
-    allValLoss = np.loadtxt(out_path + '/allValLoss.txt')
-    allTrainLoss = np.loadtxt(out_path + '/allTrainLoss.txt')
+    allValLoss_tmp = np.loadtxt(out_path + '/allValLoss.txt')
+    allTrainLoss_tmp = np.loadtxt(out_path + '/allTrainLoss.txt')
+    
+    # populate new array to preserve the epoch number (we might re-run with a higher epoch number to continue training)
+    allTrainLoss[0:allTrainLoss_tmp.size] = allTrainLoss_tmp
+    allValLoss[0:allValLoss_tmp.size] = allValLoss_tmp
+    
     print('Loaded previous loss history')
 
-print(f'model.training = {model.training}')
+print(f'model_1.training = {model_1.training}')
 
 #%%               
 for epoch in epoch_list:
@@ -502,19 +433,19 @@ for epoch in epoch_list:
     for i, data in enumerate(train_dataloader, 0):
         print(f'{i} of {len(train_dataloader)}')
         # get the inputs
-        inputs, labels = data['image'],data['labels']
+        inputs, labels = data['image1'],data['labels']
         inputs = inputs.to(device)
         labels = labels.to(device)
 
         # forward + backward + optimize (every numAccum iterations)
-        outputs = model(inputs) # forward pass
-        loss = criterion(outputs, labels) # calculate loss
+        outputs = model_1(inputs) # forward pass
+        loss = criterion(outputs[:,0], labels) # calculate loss
         print(f'Batch loss = {loss.item()}')
 
         loss.backward() # backprop the loss to each weight to get gradients
         
-        optimizer.step() # take a step in this direction according to our optimiser
-        optimizer.zero_grad()
+        optimizer_1.step() # take a step in this direction according to our optimiser
+        optimizer_1.zero_grad()
         
         running_loss += loss.item() # item() gives the value in a tensor
     allTrainLoss[epoch] = running_loss/len(train_dataloader)        
@@ -522,20 +453,20 @@ for epoch in epoch_list:
         
     print('Validate')
     with torch.no_grad():
-        model = model.eval()
+        model = model_1.eval()
         valLoss = 0.0
         for i, data in enumerate(val_dataloader,0):
             
             print(f'{i} of {len(val_dataloader)}')
             loss = 0.
             # get the inputs
-            inputs, labels, valIdx = data['image'],data['labels'],data['candIdx']
+            inputs, labels, valIdx = data['image1'],data['labels'],data['candIdx']
             inputs = inputs.to(device)
             labels = labels.to(device)
     
             # calculate loss
-            outputs = model(inputs) # forward pass
-            loss = criterion(outputs, labels).cpu().detach().numpy() # calculate loss
+            outputs = model_1(inputs) # forward pass
+            loss = criterion(outputs[:,0], labels).cpu().detach().numpy() # calculate loss
             print(f'Validation loss = {loss.item()}')
             
             valLoss += loss
@@ -547,16 +478,16 @@ for epoch in epoch_list:
         
         if allValLoss[epoch] < bestValLoss:
             print(f'Best seen validation performance ({bestValLoss} -> {allValLoss[epoch]}), saving...')
-            torch.save(model.state_dict(),out_path + bestValLossNetFileName)
+            torch.save(model_1.state_dict(),out_path + bestValLossNetFileName)
             np.savetxt(out_path + '/bestEpochNum.txt',np.array([epoch]))
             bestValLoss = allValLoss[epoch]
     
     # checkpointing at the end of every epoch
-    torch.save(model.state_dict(),out_path + currModelFilename)
+    torch.save(model_1.state_dict(),out_path + currModelFilename)
     np.savetxt(f'{out_path}lastCompletedEpoch.txt',np.asarray([epoch]))
     np.savetxt(f'{out_path}randomState.txt',torch.get_rng_state().numpy())
 
-    model = model.train()
+    model_1 = model_1.train()
             
     print(f'Epoch = {epoch} finished')
 print('Finished Training')

@@ -51,7 +51,7 @@ except:
 
 #%% paths
 cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-out_path = f'results_fold_{fold_k}_archi_3/'
+out_path = f'unaugmented/results_fold_{fold_k}_archi_3/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
 
@@ -170,39 +170,57 @@ class lidcCandidateLoader(Dataset):
     def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
+        # only set augmentation for training, not validation or testing
+        if augmentFlag == True:
+            self.augmentFlag = True
+        else:
+            self.augmentFlag = False
+        
         cand_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
         for fldr in data_folders:
             csvfiles = f'cand_df_{fldr[-2]}.csv'
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
+                        
+        true_df = cand_df.loc[cand_df['class']==1]
+        false_df = cand_df.loc[cand_df['class']==0]
+
+        num_trues = len(true_df)
+        num_falses = len(false_df)
+        
+        if not n: # if n is None or 0, use all
+            if balanceFlag==True:
+                n = 2*num_falses
+            else:
+                n = len(cand_df)
             
-        # if we are balancing the data, then we need to do that here by oversampling
-        # the positives
         if balanceFlag==True:
-            true_df = cand_df.loc[cand_df['class']==1]
-            false_df = cand_df.loc[cand_df['class']==0]
-            
-            numRepeats = int(np.ceil(len(false_df) / len(true_df)))
-            true_df_aug = pd.concat([true_df]*numRepeats)[0:len(false_df)]
-            
-            cand_df = true_df_aug.append(false_df,ignore_index=False,sort=False).reset_index(drop=True)
-                
-        # only set augmentation for training, not validation or testing
-        if augmentFlag == True:
-            self.augmentFlag = True
+            num_true_out = int(np.ceil(n/2.))
+            num_false_out = int(np.floor(n/2.))
         else:
-            self.augmentFlag = False
+            num_true_out = num_trues
+            num_false_out = n - num_trues
             
+        # pull out the right number of each
+        if balanceFlag==True:
+            numRepeats = int(np.ceil(num_true_out / num_trues))
+            true_df_aug = pd.concat([true_df]*numRepeats)[0:num_true_out]
+            
+            false_df_aug = false_df[0:num_false_out]
+            
+            cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)
+            
+        else:
+            true_df_aug = true_df[0:num_true_out]
+            
+            false_df_aug = false_df[0:num_false_out]
+            
+            cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
+
         # shuffle repeatably
         cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
-            
-        # pull out n examples only if possible
-        try:
-            cand_df = cand_df.iloc[0:n]
-        except:
-            pass
-        
+             
         self.cand_df = cand_df
         
     def __len__(self):
@@ -302,7 +320,7 @@ val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num
 criterion = torch.nn.BCELoss()
 optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
 ctr = 0
-num_epochs = 2
+num_epochs = 1
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss = 1e6

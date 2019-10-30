@@ -11,7 +11,7 @@ import os
 
 print('Merging the results from all folds')
 
-out_foldr = 'unaugmented/final_results/'
+out_foldr = 'augmented/final_results/'
 if (not os.path.exists(out_foldr)) & (out_foldr != ""): 
     os.makedirs(out_foldr)
 
@@ -22,7 +22,7 @@ for fold_k in range(10):
     
     try:
         results_filename = f'test_results_fold{fold_k}.csv'
-        out_path = f'unaugmented/results_fold_{fold_k}/'
+        out_path = f'augmented/results_fold_{fold_k}/'
         results_filename = out_path + results_filename
         
         tmpDf = pd.read_csv(results_filename)

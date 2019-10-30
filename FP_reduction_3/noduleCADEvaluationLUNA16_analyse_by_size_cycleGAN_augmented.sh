@@ -1,7 +1,7 @@
 #!/bin/bash
 
-results_filename=/home/se14/Documents/LIDC/LUNA16_nodule_detection/FP_reduction_1_reduced_cands/final_results/3D_CNN_FP_reduction.csv
-out_path=/home/se14/Documents/LIDC/LUNA16_nodule_detection/FP_reduction_1_reduced_cands/FROC_size_analysis_results/
+results_filename=/home/se14/Documents/LIDC/LUNA16_nodule_detection/FP_reduction_3/augmented/final_results/multilevel_3D_CNN_FP_reduction.csv
+out_path=/home/se14/Documents/LIDC/LUNA16_nodule_detection/FP_reduction_3/augmented/FROC_size_analysis_results/
 
 eval "$(conda shell.bash hook)"
 conda activate my_env_p2
