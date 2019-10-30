@@ -51,7 +51,7 @@ except:
 
 #%% paths
 cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_nods/' # the path to the augmented nodules
+aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
 out_path = f'augmented/results_fold_{fold_k}_archi_3/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
