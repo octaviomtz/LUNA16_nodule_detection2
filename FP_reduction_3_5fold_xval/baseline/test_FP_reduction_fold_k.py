@@ -247,6 +247,12 @@ class lidcCandidateLoader(Dataset):
             true_df_aug = pd.concat([true_df]*numRepeats)[0:len(false_df)]
             
             cand_df = true_df_aug.append(false_df,ignore_index=False,sort=False).reset_index(drop=True)
+            
+        # check that the paths to the folders are correct, and replace if not (not the best code!)
+        path_from_df = os.path.split(os.path.split(cand_df['filename'][0])[0])[0]
+        path_from_user = os.path.split(os.path.split(data_folders[0])[0])[0]
+        if path_from_df != path_from_user:
+            cand_df['filename'] = cand_df['filename'].str.replace(path_from_df,path_from_user)
         
         self.cand_df = cand_df
         

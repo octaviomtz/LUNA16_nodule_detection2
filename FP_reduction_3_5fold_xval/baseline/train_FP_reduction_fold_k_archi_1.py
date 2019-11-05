@@ -55,7 +55,7 @@ if (not os.path.exists(out_path)) & (out_path != ""):
     os.makedirs(out_path)
     
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/se14/DATA/LUNA16/candidates/'
+cand_path = '/media/se14/DATA/candidates/'
 
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
@@ -188,6 +188,7 @@ class lidcCandidateLoader(Dataset):
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
+            cand_df['filename'] = cand_df['filename']
                         
         true_df = cand_df.loc[cand_df['class']==1]
         false_df = cand_df.loc[cand_df['class']==0]
@@ -226,6 +227,12 @@ class lidcCandidateLoader(Dataset):
 
         # shuffle repeatably
         cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
+        
+        # check that the paths to the folders are correct, and replace if not (not the best code!)
+        path_from_df = os.path.split(os.path.split(cand_df['filename'][0])[0])[0]
+        path_from_user = os.path.split(os.path.split(data_folders[0])[0])[0]
+        if path_from_df != path_from_user:
+            cand_df['filename'] = cand_df['filename'].str.replace(path_from_df,path_from_user)
              
         self.cand_df = cand_df
         
