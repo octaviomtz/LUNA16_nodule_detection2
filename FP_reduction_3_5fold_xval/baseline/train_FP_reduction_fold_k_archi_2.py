@@ -55,7 +55,7 @@ if (not os.path.exists(out_path)) & (out_path != ""):
     os.makedirs(out_path)
     
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/se14/DATA/LUNA16/candidates/'
+cand_path = '/media/se14/DATA/candidates/'
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
@@ -325,10 +325,10 @@ class lidcCandidateLoader(Dataset):
 #%% set up dataloader
 batch_size = 128
 trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 1,pin_memory=True)
 
 valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
-val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
+val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 1,pin_memory=True)
 
 
 #%% set up training

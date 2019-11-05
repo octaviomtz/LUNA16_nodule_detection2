@@ -323,10 +323,10 @@ class lidcCandidateLoader(Dataset):
 #%% set up dataloader
 batch_size = 256
 trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 1,pin_memory=True)
 
 valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
-val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
+val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 1,pin_memory=True)
 
 
 #%% set up training

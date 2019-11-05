@@ -54,7 +54,7 @@ if (not os.path.exists(out_path)) & (out_path != ""):
     os.makedirs(out_path)
 
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
+cand_path = '/media/om18/DATA_LACIE/LUNA16/candidates/'
 
 test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
@@ -248,6 +248,12 @@ class lidcCandidateLoader(Dataset):
             true_df_aug = pd.concat([true_df]*numRepeats)[0:len(false_df)]
             
             cand_df = true_df_aug.append(false_df,ignore_index=False,sort=False).reset_index(drop=True)
+            
+        # check that the paths to the folders are correct, and replace if not (not the best code!)
+        path_from_df = os.path.split(os.path.split(cand_df['filename'][0])[0])[0]
+        path_from_user = os.path.split(os.path.split(data_folders[0])[0])[0]
+        if path_from_df != path_from_user:
+            cand_df['filename'] = cand_df['filename'].str.replace(path_from_df,path_from_user)
         
         self.cand_df = cand_df
         
