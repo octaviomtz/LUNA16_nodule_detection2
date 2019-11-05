@@ -49,29 +49,32 @@ except:
     print('Defaulting the fold to 0')
     fold_k = 0
 
-#%% paths
-cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
-out_path = f'augmented/results_fold_{fold_k}_archi_1/'
+#%% paths for 5-fold X-val
+out_path = f'results_fold_{fold_k}_archi_1/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
+    
+fold_k = 2*fold_k # to keep pairings
+cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
 
-train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
+
+train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
 
-train_aug_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
-train_aug_subset_folders = [aug_cand_path + train_aug_subset_folders[i] for i in range(len(train_aug_subset_folders))]
-
-test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x==fold_k]]
+test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
 
 # set the validation subset
-val_subset_folders = [train_subset_folders[fold_k-1]]
-val_aug_subset_folders = [train_aug_subset_folders[fold_k-1]]
+val_subset_folders = [train_subset_folders[fold_k-2],train_subset_folders[fold_k-1]]
 
 # and then remove this from the training subsets
 train_subset_folders.remove(val_subset_folders[0]) 
-train_aug_subset_folders.remove(val_aug_subset_folders[0]) 
+train_subset_folders.remove(val_subset_folders[1])
+
+#print(*(train_subset_folders + ['\n']),sep='\n')
+#print(*(val_subset_folders + ['\n']),sep='\n')
+#print(*(test_subset_folders + ['\n']),sep='\n')
+
 
 #%% network architecture for FP reduction
 def getParams(model):
@@ -169,11 +172,9 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None):
+    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
-        
-        # aug_data_folders are the folders containing the augmented nodules (so we know that these are trues)
         
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
@@ -187,20 +188,9 @@ class lidcCandidateLoader(Dataset):
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
-            
-        true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
-        false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
-        
-        # add the augmented nodules to the dataframe, leaving irrelevant columns empty
-        try:
-            for fldr in aug_data_folders:
-                tmp_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
-                tmp_df['filename'] = [fldr + file for file in os.listdir(fldr)]
-                tmp_df['class'] = 1
-                true_df = true_df.append(tmp_df)
-            print('Added augmented nodules to the dataframe')
-        except:
-            pass
+                        
+        true_df = cand_df.loc[cand_df['class']==1]
+        false_df = cand_df.loc[cand_df['class']==0]
 
         num_trues = len(true_df)
         num_falses = len(false_df)
@@ -235,7 +225,7 @@ class lidcCandidateLoader(Dataset):
             cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
 
         # shuffle repeatably
-        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k).reset_index(drop=True)
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
              
         self.cand_df = cand_df
         
@@ -325,10 +315,10 @@ class lidcCandidateLoader(Dataset):
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 4,pin_memory=True)
+trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
-valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
+valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
 val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
 
 

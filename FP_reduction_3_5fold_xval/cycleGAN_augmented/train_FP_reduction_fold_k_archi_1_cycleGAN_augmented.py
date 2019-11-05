@@ -49,29 +49,39 @@ except:
     print('Defaulting the fold to 0')
     fold_k = 0
 
-#%% paths
-cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
-out_path = f'augmented/results_fold_{fold_k}_archi_1/'
+#%% paths for 5-fold X-val
+out_path = f'results_fold_{fold_k}_archi_1/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
+    
+fold_k = 2*fold_k # to keep pairings
+cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
 
-train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
+train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
 
-train_aug_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
-train_aug_subset_folders = [aug_cand_path + train_aug_subset_folders[i] for i in range(len(train_aug_subset_folders))]
-
-test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x==fold_k]]
+test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
 
 # set the validation subset
-val_subset_folders = [train_subset_folders[fold_k-1]]
-val_aug_subset_folders = [train_aug_subset_folders[fold_k-1]]
+val_subset_folders = [train_subset_folders[fold_k-2],train_subset_folders[fold_k-1]]
 
 # and then remove this from the training subsets
 train_subset_folders.remove(val_subset_folders[0]) 
-train_aug_subset_folders.remove(val_aug_subset_folders[0]) 
+train_subset_folders.remove(val_subset_folders[1])
+
+#print(*(train_subset_folders + ['\n']),sep='\n')
+#print(*(val_subset_folders + ['\n']),sep='\n')
+#print(*(test_subset_folders + ['\n']),sep='\n')
+    
+#%% paths for the augmented data
+aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
+
+train_aug_subset_folders = [aug_cand_path + train_subset_folders[ii][-8::] for ii in range(len(train_subset_folders))]
+
+val_aug_subset_folders = [aug_cand_path + val_subset_folders[ii][-8::] for ii in range(len(val_subset_folders))]
+
+test_aug_subset_folders = [aug_cand_path + test_subset_folders[ii][-8::] for ii in range(len(test_subset_folders))]
 
 #%% network architecture for FP reduction
 def getParams(model):
@@ -169,7 +179,7 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None):
+    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None,preUpsampleFactor=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
         
@@ -191,6 +201,10 @@ class lidcCandidateLoader(Dataset):
         true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
         false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
         
+        # if we have a preUpsampleFactor, repeat the real trues that many times before appending the synthetic images
+        if preUpsampleFactor is not None: #assume that it is numeric
+            true_df = pd.concat([true_df]*preUpsampleFactor).reset_index(drop=True)
+        
         # add the augmented nodules to the dataframe, leaving irrelevant columns empty
         try:
             for fldr in aug_data_folders:
@@ -202,6 +216,7 @@ class lidcCandidateLoader(Dataset):
         except:
             pass
 
+        true_df = true_df.reset_index(drop=True)
         num_trues = len(true_df)
         num_falses = len(false_df)
         
@@ -221,7 +236,7 @@ class lidcCandidateLoader(Dataset):
         # pull out the right number of each
         if balanceFlag==True:
             numRepeats = int(np.ceil(num_true_out / num_trues))
-            true_df_aug = pd.concat([true_df]*numRepeats)[0:num_true_out]
+            true_df_aug = pd.concat([true_df]*numRepeats)[0:num_true_out].reset_index(drop=True)
             
             false_df_aug = false_df[0:num_false_out]
             
@@ -325,8 +340,8 @@ class lidcCandidateLoader(Dataset):
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 4,pin_memory=True)
+trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True,preUpsampleFactor=100)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
 valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
 val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)

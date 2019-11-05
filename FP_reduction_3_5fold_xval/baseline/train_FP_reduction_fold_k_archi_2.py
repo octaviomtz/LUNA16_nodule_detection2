@@ -49,29 +49,32 @@ except:
     print('Defaulting the fold to 0')
     fold_k = 0
 
-#%% paths
-cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
-aug_cand_path = '/media/se14/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
-out_path = f'augmented/results_fold_{fold_k}_archi_1/'
+#%% paths for 5-fold X-val
+out_path = f'results_fold_{fold_k}_archi_2/'
 if (not os.path.exists(out_path)) & (out_path != ""): 
     os.makedirs(out_path)
+    
+fold_k = 2*fold_k # to keep pairings
+cand_path = '/media/se14/DATA_LACIE/LUNA16/candidates/'
 
-train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
+train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
 
-train_aug_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x!=fold_k]]
-train_aug_subset_folders = [aug_cand_path + train_aug_subset_folders[i] for i in range(len(train_aug_subset_folders))]
-
-test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if x==fold_k]]
+test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
 
 # set the validation subset
-val_subset_folders = [train_subset_folders[fold_k-1]]
-val_aug_subset_folders = [train_aug_subset_folders[fold_k-1]]
+val_subset_folders = [train_subset_folders[fold_k-2],train_subset_folders[fold_k-1]]
 
 # and then remove this from the training subsets
 train_subset_folders.remove(val_subset_folders[0]) 
-train_aug_subset_folders.remove(val_aug_subset_folders[0]) 
+train_subset_folders.remove(val_subset_folders[1])
+
+#print(*(train_subset_folders + ['\n']),sep='\n')
+#print(*(val_subset_folders + ['\n']),sep='\n')
+#print(*(test_subset_folders + ['\n']),sep='\n')
+
+
 
 #%% network architecture for FP reduction
 def getParams(model):
@@ -88,22 +91,25 @@ def conv3dBasic(ni, nf, ks, stride,padding = 0):
             nn.ReLU(inplace=True),
             nn.BatchNorm3d(nf))
     
-class discriminatorNet_archi_1(nn.Module):
+class discriminatorNet_archi_2(nn.Module):
     def __init__(self):
         super().__init__()
         
         # modules
         self.C1 = conv3dBasic(1, 64, 5, 1, 2)
+        self.M1 = nn.MaxPool3d(2)
         self.C2 = conv3dBasic(64, 64, 5, 1, 2)
         self.C3 = conv3dBasic(64, 64, 5, 1, 2)
         self.D1 = conv3dBasic(64, 64, 5, 2, 2) #  downsample
-        self.FC1 = nn.Linear(64000, 150)
-        self.FC2 = nn.Linear(150,1)
+        self.FC1 = nn.Linear(32768, 250)
+        self.FC2 = nn.Linear(250,1)
         
     def forward(self, x):
         
 #        print(x.shape)
         x = self.C1(x)
+#        print(x.shape)
+        x = self.M1(x)
 #        print(x.shape)
         x = self.C2(x)
 #        print(x.shape)
@@ -120,11 +126,12 @@ class discriminatorNet_archi_1(nn.Module):
 
         return x
     
-model_1 = discriminatorNet_archi_1()
-model_1 = model_1.to(dtype=dType).to(device)
+model_2 = discriminatorNet_archi_2()
+model_2 = model_2.to(dtype=dType).to(device)
 
-print(f'{len(getParams(model_1))} parameters')
+print(f'{len(getParams(model_2))} parameters')
     
+
 # initialization function, first checks the module type,
 # then applies the desired changes to the weights
 #def init_net(m):
@@ -169,12 +176,9 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None):
+    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
-        
-        # aug_data_folders are the folders containing the augmented nodules (so we know that these are trues)
-        
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
             self.augmentFlag = True
@@ -187,20 +191,9 @@ class lidcCandidateLoader(Dataset):
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
-            
-        true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
-        false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
-        
-        # add the augmented nodules to the dataframe, leaving irrelevant columns empty
-        try:
-            for fldr in aug_data_folders:
-                tmp_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
-                tmp_df['filename'] = [fldr + file for file in os.listdir(fldr)]
-                tmp_df['class'] = 1
-                true_df = true_df.append(tmp_df)
-            print('Added augmented nodules to the dataframe')
-        except:
-            pass
+                        
+        true_df = cand_df.loc[cand_df['class']==1]
+        false_df = cand_df.loc[cand_df['class']==0]
 
         num_trues = len(true_df)
         num_falses = len(false_df)
@@ -235,7 +228,7 @@ class lidcCandidateLoader(Dataset):
             cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
 
         # shuffle repeatably
-        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k).reset_index(drop=True)
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
              
         self.cand_df = cand_df
         
@@ -312,29 +305,29 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
-        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
-#        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
+#        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
 #        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
         
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
-        sample = {'image1': currPatch1, 'labels': currLabel, 'candIdx' : idx} # return these values
+        sample = {'image2': currPatch2, 'labels': currLabel, 'candIdx' : idx} # return these values
         
         return sample
 
 #%% set up dataloader
-batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 4,pin_memory=True)
+batch_size = 128
+trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
-valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
+valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
 val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
 
 
 #%% set up training
 criterion = torch.nn.BCELoss()
-optimizer_1 = optim.Adam(model_1.parameters(),lr = 6e-6)
+optimizer_2 = optim.Adam(model_2.parameters(),lr = 1e-5)
 ctr = 0
 num_epochs = 1
 epoch_list = np.array(list(range(num_epochs)))
@@ -345,7 +338,7 @@ bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{l
 allTrainLoss = np.zeros((num_epochs,1))
 allValLoss = np.zeros((num_epochs,1))
 
-optimizer_1.zero_grad()
+optimizer_2.zero_grad()
 
 
 currModelFilename = f'current_model.pt'
@@ -361,11 +354,11 @@ if findLR == True:
     
     data = next(iter(train_dataloader))
     # get the inputs
-    inputs, labels = data['image1'],data['labels']
+    inputs, labels = data['image2'],data['labels']
     inputs = inputs.to(device)
     labels = labels.to(device)
     
-    model_tmp2 = discriminatorNet_archi_1()
+    model_tmp2 = discriminatorNet_archi_2()
     model_tmp2 = model_tmp2.to(dtype=dType).to(device)
     
     for ii, lr in enumerate(allLRs):
@@ -384,7 +377,7 @@ if findLR == True:
     
     plt.figure()    
     plt.semilogx(allLRs,LRfinderLoss)
-    plt.title('archi-1')
+    plt.title('archi-2')
     
 #%% main loop
 start = time.time()
@@ -399,9 +392,9 @@ if os.path.exists(f'{out_path}lastCompletedEpoch.txt'):
 # load the current model, if it exists
 modelToUse = out_path + currModelFilename
 if os.path.exists(modelToUse):
-    model_1 = discriminatorNet_archi_1()
-    model_1.load_state_dict(torch.load(modelToUse))
-    model_1 = model_1.to(device)
+    model_2 = discriminatorNet_archi_2()
+    model_2.load_state_dict(torch.load(modelToUse))
+    model_2 = model_2.to(device)
     print('Loaded previous model')
 
 # set the torch random state to what it last was
@@ -421,7 +414,7 @@ if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/
     
     print('Loaded previous loss history')
 
-print(f'model_1.training = {model_1.training}')
+print(f'model_2.training = {model_2.training}')
 
 #%%               
 for epoch in epoch_list:
@@ -433,19 +426,19 @@ for epoch in epoch_list:
     for i, data in enumerate(train_dataloader, 0):
         print(f'{i} of {len(train_dataloader)}')
         # get the inputs
-        inputs, labels = data['image1'],data['labels']
+        inputs, labels = data['image2'],data['labels']
         inputs = inputs.to(device)
         labels = labels.to(device)
 
         # forward + backward + optimize (every numAccum iterations)
-        outputs = model_1(inputs) # forward pass
+        outputs = model_2(inputs) # forward pass
         loss = criterion(outputs[:,0], labels) # calculate loss
         print(f'Batch loss = {loss.item()}')
 
         loss.backward() # backprop the loss to each weight to get gradients
         
-        optimizer_1.step() # take a step in this direction according to our optimiser
-        optimizer_1.zero_grad()
+        optimizer_2.step() # take a step in this direction according to our optimiser
+        optimizer_2.zero_grad()
         
         running_loss += loss.item() # item() gives the value in a tensor
     allTrainLoss[epoch] = running_loss/len(train_dataloader)        
@@ -453,19 +446,19 @@ for epoch in epoch_list:
         
     print('Validate')
     with torch.no_grad():
-        model = model_1.eval()
+        model = model_2.eval()
         valLoss = 0.0
         for i, data in enumerate(val_dataloader,0):
             
             print(f'{i} of {len(val_dataloader)}')
             loss = 0.
             # get the inputs
-            inputs, labels, valIdx = data['image1'],data['labels'],data['candIdx']
+            inputs, labels, valIdx = data['image2'],data['labels'],data['candIdx']
             inputs = inputs.to(device)
             labels = labels.to(device)
     
             # calculate loss
-            outputs = model_1(inputs) # forward pass
+            outputs = model_2(inputs) # forward pass
             loss = criterion(outputs[:,0], labels).cpu().detach().numpy() # calculate loss
             print(f'Validation loss = {loss.item()}')
             
@@ -478,16 +471,16 @@ for epoch in epoch_list:
         
         if allValLoss[epoch] < bestValLoss:
             print(f'Best seen validation performance ({bestValLoss} -> {allValLoss[epoch]}), saving...')
-            torch.save(model_1.state_dict(),out_path + bestValLossNetFileName)
+            torch.save(model_2.state_dict(),out_path + bestValLossNetFileName)
             np.savetxt(out_path + '/bestEpochNum.txt',np.array([epoch]))
             bestValLoss = allValLoss[epoch]
     
     # checkpointing at the end of every epoch
-    torch.save(model_1.state_dict(),out_path + currModelFilename)
+    torch.save(model_2.state_dict(),out_path + currModelFilename)
     np.savetxt(f'{out_path}lastCompletedEpoch.txt',np.asarray([epoch]))
     np.savetxt(f'{out_path}randomState.txt',torch.get_rng_state().numpy())
 
-    model_1 = model_1.train()
+    model_2 = model_2.train()
             
     print(f'Epoch = {epoch} finished')
 print('Finished Training')
