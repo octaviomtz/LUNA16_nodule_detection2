@@ -62,9 +62,8 @@ if (not os.path.exists(out_path_2)) & (out_path_2 != ""):
 if (not os.path.exists(out_path_3)) & (out_path_3 != ""): 
     os.makedirs(out_path_3)
     
-    
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/se14/DATA/candidates/'
+cand_path = '/media/om18/DATA_LACIE/LUNA16/candidates/'
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
@@ -82,7 +81,15 @@ train_subset_folders.remove(val_subset_folders[1])
 #print(*(train_subset_folders + ['\n']),sep='\n')
 #print(*(val_subset_folders + ['\n']),sep='\n')
 #print(*(test_subset_folders + ['\n']),sep='\n')
+    
+#%% paths for the augmented data
+aug_cand_path = '/media/om18/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
 
+train_aug_subset_folders = [aug_cand_path + train_subset_folders[ii][-8::] for ii in range(len(train_subset_folders))]
+
+val_aug_subset_folders = [aug_cand_path + val_subset_folders[ii][-8::] for ii in range(len(val_subset_folders))]
+
+test_aug_subset_folders = [aug_cand_path + test_subset_folders[ii][-8::] for ii in range(len(test_subset_folders))]
 
 #%% network architecture for FP reduction
 def getParams(model):
@@ -135,7 +142,7 @@ model_1 = discriminatorNet_archi_1()
 model_1 = model_1.to(dtype=dType).to(device1)
 
 print(f'{len(getParams(model_1))} parameters')
-
+    
 class discriminatorNet_archi_2(nn.Module):
     def __init__(self):
         super().__init__()
@@ -215,6 +222,8 @@ model_3 = discriminatorNet_archi_3()
 model_3 = model_3.to(dtype=dType).to(device3)
 
 print(f'{len(getParams(model_3))} parameters')
+
+
 #%% dataset object to read in all candidates from our training data
 def eulerAnglesToRotationMatrix(theta):
 
@@ -238,9 +247,11 @@ def eulerAnglesToRotationMatrix(theta):
 
 class lidcCandidateLoader(Dataset):
     
-    def __init__(self,data_folders,augmentFlag,balanceFlag,n=None):
+    def __init__(self,data_folders,aug_data_folders,augmentFlag,balanceFlag,n=None,preUpsampleFactor=None):
         # data_folders are the locations of the data that we want to use
         # e.g. '/media/se14/DATA/LUNA16/candidates/subset9/'
+        
+        # aug_data_folders are the folders containing the augmented nodules (so we know that these are trues)
         
         # only set augmentation for training, not validation or testing
         if augmentFlag == True:
@@ -254,11 +265,26 @@ class lidcCandidateLoader(Dataset):
 #            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
             
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
-            cand_df['filename'] = cand_df['filename']
-                        
-        true_df = cand_df.loc[cand_df['class']==1]
-        false_df = cand_df.loc[cand_df['class']==0]
+            
+        true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
+        false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
+        
+        # if we have a preUpsampleFactor, repeat the real trues that many times before appending the synthetic images
+        if preUpsampleFactor is not None: #assume that it is numeric
+            true_df = pd.concat([true_df]*preUpsampleFactor).reset_index(drop=True)
+        
+        # add the augmented nodules to the dataframe, leaving irrelevant columns empty
+        try:
+            for fldr in aug_data_folders:
+                tmp_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
+                tmp_df['filename'] = [fldr + file for file in os.listdir(fldr)]
+                tmp_df['class'] = 1
+                true_df = true_df.append(tmp_df)
+            print('Added augmented nodules to the dataframe')
+        except:
+            pass
 
+        true_df = true_df.reset_index(drop=True)
         num_trues = len(true_df)
         num_falses = len(false_df)
         
@@ -278,7 +304,7 @@ class lidcCandidateLoader(Dataset):
         # pull out the right number of each
         if balanceFlag==True:
             numRepeats = int(np.ceil(num_true_out / num_trues))
-            true_df_aug = pd.concat([true_df]*numRepeats)[0:num_true_out]
+            true_df_aug = pd.concat([true_df]*numRepeats)[0:num_true_out].reset_index(drop=True)
             
             false_df_aug = false_df[0:num_false_out]
             
@@ -292,7 +318,7 @@ class lidcCandidateLoader(Dataset):
             cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
 
         # shuffle repeatably
-        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k)
+        cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k).reset_index(drop=True)
         
         # check that the paths to the folders are correct, and replace if not (not the best code!)
         path_from_df = os.path.split(os.path.split(cand_df['filename'][0])[0])[0]
@@ -375,24 +401,24 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
-#        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
 #        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
-        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
+#        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
         
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
-        sample = {'image3': currPatch3, 'labels': currLabel, 'candIdx' : idx} # return these values
+        sample = {'image1': currPatch1, 'labels': currLabel, 'candIdx' : idx} # return these values
         
         return sample
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,augmentFlag=True,balanceFlag=True)
-train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 1,pin_memory=True)
+trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True,preUpsampleFactor=100)
+train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
-valData = lidcCandidateLoader(val_subset_folders,augmentFlag=False,balanceFlag=False)
-val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 1,pin_memory=True)
+valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
+val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num_workers = 2,pin_memory=True)
 
 
 #%% set up training
@@ -424,8 +450,8 @@ optimizer_2.zero_grad()
 optimizer_3.zero_grad()
 
 currModelFilename = f'current_model.pt'
-
-#%% set up from previous if possible
+    
+#%% main loop
 start = time.time()
 
 # try to load our previous state, if possible
