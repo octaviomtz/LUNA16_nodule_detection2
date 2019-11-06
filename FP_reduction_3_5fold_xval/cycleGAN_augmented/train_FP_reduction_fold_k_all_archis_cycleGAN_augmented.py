@@ -408,7 +408,7 @@ class lidcCandidateLoader(Dataset):
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
         currLabel = torch.from_numpy(np.array(currLabel)).to(dtype=dType)
-        sample = {'image1': currPatch1, 'labels': currLabel, 'candIdx' : idx} # return these values
+        sample = {'image3': currPatch3, 'labels': currLabel, 'candIdx' : idx} # return these values
         
         return sample
 
