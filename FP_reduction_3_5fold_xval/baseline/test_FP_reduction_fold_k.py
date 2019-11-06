@@ -44,7 +44,7 @@ try:
     print(f'Testing fold {fold_k}')
 except:
     print('Defaulting the fold to 0')
-    fold_k = 1
+    fold_k = 0
 
 results_filename = f'test_results_fold{fold_k}.csv'
 
