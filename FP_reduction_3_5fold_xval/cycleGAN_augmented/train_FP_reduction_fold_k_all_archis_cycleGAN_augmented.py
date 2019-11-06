@@ -401,9 +401,9 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
-        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+#        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
 #        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
-#        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
+        currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
         
         # output results
         currPatch = torch.from_numpy(currPatch[None,:,:,:])
