@@ -1,0 +1,3 @@
+#!/bin/bash
+bash run_train_and_test_all_folds_all_archis_VAEGAN_augmented.sh
+bash noduleCADEvaluationLUNA16_analyse_by_size_VAEGAN_augmented.sh
