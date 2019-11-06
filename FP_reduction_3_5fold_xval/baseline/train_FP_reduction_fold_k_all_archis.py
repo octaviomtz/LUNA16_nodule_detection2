@@ -303,8 +303,8 @@ class lidcCandidateLoader(Dataset):
         self.cand_df = cand_df
         
     def __len__(self):
-#        return 1000
-        return len(self.cand_df)
+        return 1000
+#        return len(self.cand_df)
     
     def __getitem__(self,idx):
         currFileName = self.cand_df.iloc[idx]['filename']
