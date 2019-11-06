@@ -44,7 +44,7 @@ try:
     print(f'Testing fold {fold_k}')
 except:
     print('Defaulting the fold to 0')
-    fold_k = 0
+    fold_k = 1
 
 results_filename = f'test_results_fold{fold_k}.csv'
 
@@ -113,7 +113,7 @@ class discriminatorNet_archi_1(nn.Module):
         return x
     
 #% load the model to be tested
-modelToUse_1 = f'results_fold_{fold_k}_archi_1/' + 'current_model.pt'
+modelToUse_1 = f'results_fold_{fold_k//2}_archi_1/' + 'current_model.pt'
 model_1 = discriminatorNet_archi_1()
 model_1.load_state_dict(torch.load(modelToUse_1))
 model_1 = model_1.to(device)
@@ -156,7 +156,7 @@ class discriminatorNet_archi_2(nn.Module):
         return x
 
 #% load the model to be tested
-modelToUse_2 = f'results_fold_{fold_k}_archi_2/' + 'current_model.pt'
+modelToUse_2 = f'results_fold_{fold_k//2}_archi_2/' + 'current_model.pt'
 model_2 = discriminatorNet_archi_2()
 model_2.load_state_dict(torch.load(modelToUse_2))
 model_2 = model_2.to(device)
@@ -199,7 +199,7 @@ class discriminatorNet_archi_3(nn.Module):
         return x
     
 #% load the model to be tested
-modelToUse_3 = f'results_fold_{fold_k}_archi_3/' + 'current_model.pt'
+modelToUse_3 = f'results_fold_{fold_k//2}_archi_3/' + 'current_model.pt'
 model_3 = discriminatorNet_archi_3()
 model_3.load_state_dict(torch.load(modelToUse_3))
 model_3 = model_3.to(device)
