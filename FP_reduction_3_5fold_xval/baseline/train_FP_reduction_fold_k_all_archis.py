@@ -506,10 +506,15 @@ for epoch in epoch_list:
 
     print('Training')
     for i, data in enumerate(train_dataloader, 0):
+
+	# debug: skip the final batch to avoid errors when batch size does not match hard coded values below (needs to be fixed!!!)
+	if i == len(train_dataloader)-1:
+           break
+
         print(f'{i} of {len(train_dataloader)}')
         # get the inputs
         inputs_tmp, labels_tmp = data['image3'],data['labels']
-        
+
         # train model 1 -----------------
         inputs = inputs_tmp[:,:,10:-10,10:-10,10:-10].to(device1)
         labels = labels_tmp.to(device1)
@@ -571,7 +576,11 @@ for epoch in epoch_list:
         valLoss_2 = 0.0
         valLoss_3 = 0.0
         for i, data in enumerate(val_dataloader,0):
-            
+
+            # debug: skip the last batch. Need to fix!!!!!
+            if i == len(val_dataloader)-1:
+                break
+
             print(f'{i} of {len(val_dataloader)}')
             loss = 0.
             # get the inputs
