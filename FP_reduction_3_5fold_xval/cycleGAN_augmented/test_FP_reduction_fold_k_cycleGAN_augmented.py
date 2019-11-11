@@ -54,7 +54,7 @@ if (not os.path.exists(out_path)) & (out_path != ""):
     os.makedirs(out_path)
 
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/om18/DATA_LACIE/LUNA16/candidates/'
+cand_path = np.loadtxt('data_path.txt','str').item()
 
 test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]

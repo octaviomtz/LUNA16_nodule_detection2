@@ -63,7 +63,7 @@ if (not os.path.exists(out_path_3)) & (out_path_3 != ""):
     os.makedirs(out_path_3)
     
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/om18/DATA_LACIE/LUNA16/candidates/'
+cand_path = np.loadtxt('data_path.txt','str').item()
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
@@ -83,7 +83,7 @@ train_subset_folders.remove(val_subset_folders[1])
 #print(*(test_subset_folders + ['\n']),sep='\n')
     
 #%% paths for the augmented data
-aug_cand_path = '/media/om18/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
+aug_cand_path = np.loadtxt('aug_path.txt','str').item() # the path to the augmented nodules
 
 train_aug_subset_folders = [aug_cand_path + train_subset_folders[ii][-8::] for ii in range(len(train_subset_folders))]
 
@@ -533,6 +533,11 @@ for epoch in epoch_list:
     print('Training')
     for i, data in enumerate(train_dataloader, 0):
         print(f'{i} of {len(train_dataloader)}')
+        
+        # skip the last batch to avoid errors (needs fixing!!!!!)
+        if i == len(train_dataloader) - 1:
+            break
+        
         # get the inputs
         inputs_tmp, labels_tmp = data['image3'],data['labels']
         
@@ -599,6 +604,11 @@ for epoch in epoch_list:
         for i, data in enumerate(val_dataloader,0):
             
             print(f'{i} of {len(val_dataloader)}')
+            
+            # this needs fixing in future!!!!!
+            if i == len(val_dataloader) - 1:
+                break
+            
             loss = 0.
             # get the inputs
             inputs_tmp, labels_tmp = data['image3'],data['labels']
