@@ -18,7 +18,7 @@ if (not os.path.exists(out_foldr)) & (out_foldr != ""):
 out_filename = 'multilevel_3D_CNN_FP_reduction.csv'
 all_results_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','probability'])
 
-for fold_k in range(10):
+for fold_k in range(5):
     
     try:
         results_filename = f'test_results_fold{fold_k}.csv'

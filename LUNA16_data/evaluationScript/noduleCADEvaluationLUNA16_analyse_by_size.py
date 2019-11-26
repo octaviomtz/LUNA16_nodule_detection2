@@ -535,7 +535,7 @@ def noduleCADEvaluation(annotations_filename, annotations_excluded_filename, ser
     @param outputDir: output directory
     '''
 
-    print annotations_filename
+    print(annotations_filename)
     print('Size threshold is:')
     print(nod_diam_thresh)
 

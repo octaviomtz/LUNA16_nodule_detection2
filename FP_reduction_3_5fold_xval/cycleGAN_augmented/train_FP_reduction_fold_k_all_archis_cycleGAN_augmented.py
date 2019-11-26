@@ -278,6 +278,11 @@ class lidcCandidateLoader(Dataset):
             for fldr in aug_data_folders:
                 tmp_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
                 tmp_df['filename'] = [fldr + file for file in os.listdir(fldr)]
+                # use only a subset of the augmentations #OMM
+                tmp_df['epoch']= tmp_df['filename'].apply(lambda x:int(x.split('_ep')[-1]))
+                tmp_df = tmp_df[tmp_df['epoch']<70]
+                tmp_df = tmp_df.drop('epoch',axis=1)
+
                 tmp_df['class'] = 1
                 true_df = true_df.append(tmp_df)
             print('Added augmented nodules to the dataframe')
@@ -374,9 +379,9 @@ class lidcCandidateLoader(Dataset):
             rotMat = eulerAnglesToRotationMatrix((rotFactX,rotFactY,rotFactZ))
             
             scaleMat = np.eye(3,3)
-            scaleMat[0,0] *= scaleFact
-            scaleMat[1,1] *= scaleFact
-            scaleMat[2,2] *= scaleFact
+            # scaleMat[0,0] *= scaleFact
+            # scaleMat[1,1] *= scaleFact
+            # scaleMat[2,2] *= scaleFact
             
             affMat = np.dot(rotMat,scaleMat)
             
@@ -414,7 +419,7 @@ class lidcCandidateLoader(Dataset):
 
 #%% set up dataloader
 batch_size = 256
-trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True,preUpsampleFactor=100)
+trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True,preUpsampleFactor=30) #OMM 100->30
 train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
 valData = lidcCandidateLoader(val_subset_folders,None,augmentFlag=False,balanceFlag=False)
@@ -428,7 +433,7 @@ optimizer_2 = optim.Adam(model_2.parameters(),lr = 1e-5)
 optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
 
 ctr = 0
-num_epochs = 1
+num_epochs = 2
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss_1 = 1e6

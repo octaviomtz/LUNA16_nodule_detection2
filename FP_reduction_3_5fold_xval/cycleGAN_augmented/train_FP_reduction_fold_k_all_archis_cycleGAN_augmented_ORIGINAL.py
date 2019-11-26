@@ -36,7 +36,9 @@ try:
 except:
     pass
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device1 = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device2 = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device3 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #device = torch.device("cpu")
 dType = torch.float32
 
@@ -50,12 +52,18 @@ except:
     fold_k = 0
 
 #%% paths for 5-fold X-val
-out_path = f'results_fold_{fold_k}_archi_3/'
-if (not os.path.exists(out_path)) & (out_path != ""): 
-    os.makedirs(out_path)
+out_path_1 = f'results_fold_{fold_k}_archi_1/'
+out_path_2 = f'results_fold_{fold_k}_archi_2/'
+out_path_3 = f'results_fold_{fold_k}_archi_3/'
+if (not os.path.exists(out_path_1)) & (out_path_1 != ""): 
+    os.makedirs(out_path_1)
+if (not os.path.exists(out_path_2)) & (out_path_2 != ""): 
+    os.makedirs(out_path_2)
+if (not os.path.exists(out_path_3)) & (out_path_3 != ""): 
+    os.makedirs(out_path_3)
     
 fold_k = 2*fold_k # to keep pairings
-cand_path = '/media/om18/DATA_LACIE/LUNA16/candidates/'
+cand_path = np.loadtxt('data_path.txt','str').item()
 
 train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
@@ -75,13 +83,14 @@ train_subset_folders.remove(val_subset_folders[1])
 #print(*(test_subset_folders + ['\n']),sep='\n')
     
 #%% paths for the augmented data
-aug_cand_path = '/media/om18/DATA_LACIE/LUNA16/cycleGAN_aug_10_folds/' # the path to the augmented nodules
+aug_cand_path = np.loadtxt('aug_path.txt','str').item() # the path to the augmented nodules
 
 train_aug_subset_folders = [aug_cand_path + train_subset_folders[ii][-8::] for ii in range(len(train_subset_folders))]
 
 val_aug_subset_folders = [aug_cand_path + val_subset_folders[ii][-8::] for ii in range(len(val_subset_folders))]
 
 test_aug_subset_folders = [aug_cand_path + test_subset_folders[ii][-8::] for ii in range(len(test_subset_folders))]
+
 #%% network architecture for FP reduction
 def getParams(model):
     a = list(model.parameters())
@@ -97,6 +106,83 @@ def conv3dBasic(ni, nf, ks, stride,padding = 0):
             nn.ReLU(inplace=True),
             nn.BatchNorm3d(nf))
     
+class discriminatorNet_archi_1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+        # modules
+        self.C1 = conv3dBasic(1, 64, 5, 1, 2)
+        self.C2 = conv3dBasic(64, 64, 5, 1, 2)
+        self.C3 = conv3dBasic(64, 64, 5, 1, 2)
+        self.D1 = conv3dBasic(64, 64, 5, 2, 2) #  downsample
+        self.FC1 = nn.Linear(64000, 150)
+        self.FC2 = nn.Linear(150,1)
+        
+    def forward(self, x):
+        
+#        print(x.shape)
+        x = self.C1(x)
+#        print(x.shape)
+        x = self.C2(x)
+#        print(x.shape)
+        x = self.C3(x)
+#        print(x.shape)
+        x = self.D1(x)
+#        print(x.shape)
+#        print(x.view(x.shape[0],-1).shape)
+        x = self.FC1(x.view(x.shape[0],-1))
+#        print(x.shape)
+        x = self.FC2(x)
+#        print(x.shape)
+        x = torch.sigmoid(x)
+
+        return x
+    
+model_1 = discriminatorNet_archi_1()
+model_1 = model_1.to(dtype=dType).to(device1)
+
+print(f'{len(getParams(model_1))} parameters')
+    
+class discriminatorNet_archi_2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+        # modules
+        self.C1 = conv3dBasic(1, 64, 5, 1, 2)
+        self.M1 = nn.MaxPool3d(2)
+        self.C2 = conv3dBasic(64, 64, 5, 1, 2)
+        self.C3 = conv3dBasic(64, 64, 5, 1, 2)
+        self.D1 = conv3dBasic(64, 64, 5, 2, 2) #  downsample
+        self.FC1 = nn.Linear(32768, 250)
+        self.FC2 = nn.Linear(250,1)
+        
+    def forward(self, x):
+        
+#        print(x.shape)
+        x = self.C1(x)
+#        print(x.shape)
+        x = self.M1(x)
+#        print(x.shape)
+        x = self.C2(x)
+#        print(x.shape)
+        x = self.C3(x)
+#        print(x.shape)
+        x = self.D1(x)
+#        print(x.shape)
+#        print(x.view(x.shape[0],-1).shape)
+        x = self.FC1(x.view(x.shape[0],-1))
+#        print(x.shape)
+        x = self.FC2(x)
+#        print(x.shape)
+        x = torch.sigmoid(x)
+
+        return x
+    
+model_2 = discriminatorNet_archi_2()
+model_2 = model_2.to(dtype=dType).to(device2)
+
+print(f'{len(getParams(model_2))} parameters')
+
 class discriminatorNet_archi_3(nn.Module):
     def __init__(self):
         super().__init__()
@@ -133,30 +219,9 @@ class discriminatorNet_archi_3(nn.Module):
         return x
     
 model_3 = discriminatorNet_archi_3()
-model_3 = model_3.to(dtype=dType).to(device)
+model_3 = model_3.to(dtype=dType).to(device3)
 
 print(f'{len(getParams(model_3))} parameters')
-
-    
-# initialization function, first checks the module type,
-# then applies the desired changes to the weights
-#def init_net(m):
-#    if (type(m) == nn.Linear) or (type(m) == nn.modules.conv.Conv3d):
-#        nn.init.kaiming_uniform_(m.weight)
-#        
-#    if hasattr(m, 'bias'):
-#        try:
-#            nn.init.constant_(m.bias,0.0)
-#        except:
-#            pass
-
-    
-#model = discriminatorNet()
-#model = model.to(dtype=dType)
-#model = model.apply(init_net).to(device)
-#image = torch.zeros((1,1,40,40,40)).to(dtype=dType).to(device)
-#out = model(image)
-#print(out)
 
 
 #%% dataset object to read in all candidates from our training data
@@ -309,9 +374,9 @@ class lidcCandidateLoader(Dataset):
             rotMat = eulerAnglesToRotationMatrix((rotFactX,rotFactY,rotFactZ))
             
             scaleMat = np.eye(3,3)
-            scaleMat[0,0] *= scaleFact
-            scaleMat[1,1] *= scaleFact
-            scaleMat[2,2] *= scaleFact
+            # scaleMat[0,0] *= scaleFact
+            # scaleMat[1,1] *= scaleFact
+            # scaleMat[2,2] *= scaleFact
             
             affMat = np.dot(rotMat,scaleMat)
             
@@ -348,7 +413,7 @@ class lidcCandidateLoader(Dataset):
         return sample
 
 #%% set up dataloader
-batch_size = 64
+batch_size = 256
 trainData = lidcCandidateLoader(train_subset_folders,train_aug_subset_folders,augmentFlag=True,balanceFlag=True,preUpsampleFactor=100)
 train_dataloader = DataLoader(trainData, batch_size = batch_size,shuffle = True,num_workers = 2,pin_memory=True)
 
@@ -358,160 +423,277 @@ val_dataloader = DataLoader(valData, batch_size = batch_size,shuffle = False,num
 
 #%% set up training
 criterion = torch.nn.BCELoss()
+optimizer_1 = optim.Adam(model_1.parameters(),lr = 6e-6)
+optimizer_2 = optim.Adam(model_2.parameters(),lr = 1e-5)
 optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
+
 ctr = 0
-num_epochs = 1
+num_epochs = 2
 epoch_list = np.array(list(range(num_epochs)))
 
-bestValLoss = 1e6
+bestValLoss_1 = 1e6
+bestValLoss_2 = 1e6
+bestValLoss_3 = 1e6
 bestValLossNetFileName = f'bestDiscriminator_model.pt'#_BS{batch_size}_samples{len(trainData)}_epochs{num_epochs}_LR{LR}.pt'
 
-allTrainLoss = np.zeros((num_epochs,1))
-allValLoss = np.zeros((num_epochs,1))
+allTrainLoss_1 = np.zeros((num_epochs,1))
+allValLoss_1 = np.zeros((num_epochs,1))
 
+allTrainLoss_2 = np.zeros((num_epochs,1))
+allValLoss_2 = np.zeros((num_epochs,1))
+
+allTrainLoss_3 = np.zeros((num_epochs,1))
+allValLoss_3 = np.zeros((num_epochs,1))
+
+optimizer_1.zero_grad()
+optimizer_2.zero_grad()
 optimizer_3.zero_grad()
 
-
 currModelFilename = f'current_model.pt'
-
-#%% alternative learning rate finders
-findLR = False
-#findLR = True
-if findLR == True:
-    print('LR finder')
-
-    allLRs = np.logspace(-7,-1,100)
-    LRfinderLoss = np.zeros_like(allLRs).astype('float32')
-    
-    data = next(iter(train_dataloader))
-    # get the inputs
-    inputs, labels = data['image3'],data['labels']
-    inputs = inputs.to(device)
-    labels = labels.to(device)
-    
-    model_tmp2 = discriminatorNet_archi_3()
-    model_tmp2 = model_tmp2.to(dtype=dType).to(device)
-    
-    for ii, lr in enumerate(allLRs):
-        optimizer2 = optim.Adam(model_tmp2.parameters(),lr = allLRs[ii])
-        
-        # forward + backward + optimize (every numAccum iterations)
-        outputs = model_tmp2(inputs) # forward pass
-        loss = criterion(outputs[:,0], labels) # calculate loss
-        print(f'Batch loss = {loss.item()}')
-        
-        loss.backward() # backprop the loss to each weight to get gradients
-        optimizer2.step() # take a step in this direction according to our optimiser
-        optimizer2.zero_grad()
-
-        LRfinderLoss[ii] = loss.item()
-    
-    plt.figure()    
-    plt.semilogx(allLRs,LRfinderLoss)
-    plt.title('archi-3')
     
 #%% main loop
 start = time.time()
 
 # try to load our previous state, if possible
 # find the epoch we were up to
-if os.path.exists(f'{out_path}lastCompletedEpoch.txt'):
-    lastEpoch = np.loadtxt(f'{out_path}lastCompletedEpoch.txt').astype('int16').item()
+if os.path.exists(f'{out_path_1}lastCompletedEpoch.txt'):
+    lastEpoch = np.loadtxt(f'{out_path_1}lastCompletedEpoch.txt').astype('int16').item()
     epoch_list = epoch_list[epoch_list>lastEpoch]
     print('Found previous progress, amended epoch list')
 
 # load the current model, if it exists
-modelToUse = out_path + currModelFilename
-if os.path.exists(modelToUse):
+modelToUse_1 = out_path_1 + currModelFilename
+modelToUse_2 = out_path_2 + currModelFilename
+modelToUse_3 = out_path_3 + currModelFilename
+if os.path.exists(modelToUse_1):
+    model_1 = discriminatorNet_archi_1()
+    model_1.load_state_dict(torch.load(modelToUse_1))
+    model_1 = model_1.to(device1)
+    print('Loaded previous model for archi 1')
+if os.path.exists(modelToUse_2):
+    model_2 = discriminatorNet_archi_2()
+    model_2.load_state_dict(torch.load(modelToUse_2))
+    model_2 = model_2.to(device2)
+    print('Loaded previous model for archi 2')
+if os.path.exists(modelToUse_3):
     model_3 = discriminatorNet_archi_3()
-    model_3.load_state_dict(torch.load(modelToUse))
-    model_3 = model_3.to(device)
-    print('Loaded previous model')
-
+    model_3.load_state_dict(torch.load(modelToUse_3))
+    model_3 = model_3.to(device3)
+    print('Loaded previous model for archi 3')
+    
 # set the torch random state to what it last was
-if os.path.exists(f'{out_path}randomState.txt'):
-    random_state = torch.from_numpy(np.loadtxt(f'{out_path}randomState.txt').astype('uint8'))
+if os.path.exists(f'{out_path_1}randomState.txt'):
+    random_state = torch.from_numpy(np.loadtxt(f'{out_path_1}randomState.txt').astype('uint8'))
     torch.set_rng_state(random_state)
     print('Loaded torch random state')
 
 # load the previous training losses
-if os.path.exists(out_path + '/allValLoss.txt') and os.path.exists(out_path + '/allTrainLoss.txt'):
-    allValLoss_tmp = np.loadtxt(out_path + '/allValLoss.txt')
-    allTrainLoss_tmp = np.loadtxt(out_path + '/allTrainLoss.txt')
+if os.path.exists(out_path_1 + '/allValLoss.txt') and os.path.exists(out_path_1 + '/allTrainLoss.txt'):
+    allValLoss_tmp_1 = np.loadtxt(out_path_1 + '/allValLoss.txt')
+    allTrainLoss_tmp_1 = np.loadtxt(out_path_1 + '/allTrainLoss.txt')
     
     # populate new array to preserve the epoch number (we might re-run with a higher epoch number to continue training)
-    allTrainLoss[0:allTrainLoss_tmp.size] = allTrainLoss_tmp
-    allValLoss[0:allValLoss_tmp.size] = allValLoss_tmp
+    allTrainLoss_1[0:allTrainLoss_tmp_1.size] = allTrainLoss_tmp_1
+    allValLoss_1[0:allValLoss_tmp_1.size] = allValLoss_tmp_1
     
-    print('Loaded previous loss history')
+    print('Loaded previous loss history for archi 1')
+    
+if os.path.exists(out_path_2 + '/allValLoss.txt') and os.path.exists(out_path_2 + '/allTrainLoss.txt'):
+    allValLoss_tmp_2 = np.loadtxt(out_path_2 + '/allValLoss.txt')
+    allTrainLoss_tmp_2 = np.loadtxt(out_path_2 + '/allTrainLoss.txt')
+    
+    # populate new array to preserve the epoch number (we might re-run with a higher epoch number to continue training)
+    allTrainLoss_2[0:allTrainLoss_tmp_2.size] = allTrainLoss_tmp_2
+    allValLoss_2[0:allValLoss_tmp_2.size] = allValLoss_tmp_2
+    
+    print('Loaded previous loss history for archi 2')
+    
+if os.path.exists(out_path_3 + '/allValLoss.txt') and os.path.exists(out_path_3 + '/allTrainLoss.txt'):
+    allValLoss_tmp_3 = np.loadtxt(out_path_3 + '/allValLoss.txt')
+    allTrainLoss_tmp_3 = np.loadtxt(out_path_3 + '/allTrainLoss.txt')
+    
+    # populate new array to preserve the epoch number (we might re-run with a higher epoch number to continue training)
+    allTrainLoss_3[0:allTrainLoss_tmp_3.size] = allTrainLoss_tmp_3
+    allValLoss_3[0:allValLoss_tmp_3.size] = allValLoss_tmp_3
+    
+    print('Loaded previous loss history for archi 3')
 
+print(f'model_1.training = {model_1.training}')
+print(f'model_2.training = {model_2.training}')
 print(f'model_3.training = {model_3.training}')
 
 #%%               
 for epoch in epoch_list:
 
     print(f'Epoch = {epoch}')
-    running_loss = 0.0
+    running_loss_1 = 0.0
+    running_loss_2 = 0.0
+    running_loss_3 = 0.0
 
     print('Training')
     for i, data in enumerate(train_dataloader, 0):
         print(f'{i} of {len(train_dataloader)}')
+        
+        # skip the last batch to avoid errors (needs fixing!!!!!)
+        if i == len(train_dataloader) - 1:
+            break
+        
         # get the inputs
-        inputs, labels = data['image3'],data['labels']
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+        inputs_tmp, labels_tmp = data['image3'],data['labels']
+        
+        # train model 1 -----------------
+        inputs = inputs_tmp[:,:,10:-10,10:-10,10:-10].to(device1)
+        labels = labels_tmp.to(device1)
 
         # forward + backward + optimize (every numAccum iterations)
-        outputs = model_3(inputs) # forward pass
+        outputs = model_1(inputs) # forward pass
         loss = criterion(outputs[:,0], labels) # calculate loss
-        print(f'Batch loss = {loss.item()}')
+        print(f'Batch loss archi 1 = {loss.item()}')
 
         loss.backward() # backprop the loss to each weight to get gradients
         
-        optimizer_3.step() # take a step in this direction according to our optimiser
-        optimizer_3.zero_grad()
+        optimizer_1.step() # take a step in this direction according to our optimiser
+        optimizer_1.zero_grad()
         
-        running_loss += loss.item() # item() gives the value in a tensor
-    allTrainLoss[epoch] = running_loss/len(train_dataloader)        
+        running_loss_1 += loss.item() # item() gives the value in a tensor
+        
+        # train model 2 with half a batch at a time ------------------
+        for jj in range(2):
+            inputs = inputs_tmp[128*jj:128*jj+128,:,5:-5,5:-5,5:-5].to(device2)
+            labels = labels_tmp[128*jj:128*jj+128].to(device2)
+            outputs = model_2(inputs) # forward pass
+        
+            loss = criterion(outputs[:,0], labels) # calculate loss
+            print(f'Batch loss archi 2 = {loss.item()}')
+
+            loss.backward() # backprop the loss to each weight to get gradients
+        
+            optimizer_2.step() # take a step in this direction according to our optimiser
+            optimizer_2.zero_grad()
+            
+            running_loss_2 += loss.item() # item() gives the value in a tensor
+
+        # train model 3 with 1/4 a batch at a time ------------------
+        for jj in range(4):
+            inputs = inputs_tmp[64*jj:64*jj+64,:,:,:,:].to(device3)
+            labels = labels_tmp[64*jj:64*jj+64].to(device3)
+            outputs = model_3(inputs) # forward pass
+        
+            loss = criterion(outputs[:,0], labels) # calculate loss
+            print(f'Batch loss archi 3 = {loss.item()}')
+
+            loss.backward() # backprop the loss to each weight to get gradients
+        
+            optimizer_3.step() # take a step in this direction according to our optimiser
+            optimizer_3.zero_grad()
+            
+            running_loss_3 += loss.item() # item() gives the value in a tensor
+    
+        
+    allTrainLoss_1[epoch] = running_loss_1/len(train_dataloader)        
+    allTrainLoss_2[epoch] = running_loss_2/len(train_dataloader)        
+    allTrainLoss_3[epoch] = running_loss_3/len(train_dataloader)        
 
         
     print('Validate')
     with torch.no_grad():
-        model = model_3.eval()
-        valLoss = 0.0
+        model = model_1.eval()
+        valLoss_1 = 0.0
+        valLoss_2 = 0.0
+        valLoss_3 = 0.0
         for i, data in enumerate(val_dataloader,0):
             
             print(f'{i} of {len(val_dataloader)}')
+            
+            # this needs fixing in future!!!!!
+            if i == len(val_dataloader) - 1:
+                break
+            
             loss = 0.
             # get the inputs
-            inputs, labels, valIdx = data['image3'],data['labels'],data['candIdx']
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+            inputs_tmp, labels_tmp = data['image3'],data['labels']
+            
+            # train model 1 -----------------
+            inputs = inputs_tmp[:,:,10:-10,10:-10,10:-10].to(device1)
+            labels = labels_tmp.to(device1)
     
-            # calculate loss
-            outputs = model_3(inputs) # forward pass
-            loss = criterion(outputs[:,0], labels).cpu().detach().numpy() # calculate loss
-            print(f'Validation loss = {loss.item()}')
+            # forward + backward + optimize (every numAccum iterations)
+            outputs = model_1(inputs) # forward pass
+            loss = criterion(outputs[:,0], labels) # calculate loss
+            print(f'Val loss archi 1 = {loss.item()}')
             
-            valLoss += loss
+            valLoss_1 += loss.item() # item() gives the value in a tensor
             
-        allValLoss[epoch] = valLoss/len(val_dataloader)
+            # train model 2 with half a batch at a time ------------------
+            for jj in range(2):
+                inputs = inputs_tmp[128*jj:128*jj+128,:,5:-5,5:-5,5:-5].to(device2)
+                labels = labels_tmp[128*jj:128*jj+128].to(device2)
+                outputs = model_2(inputs) # forward pass
+            
+                loss = criterion(outputs[:,0], labels) # calculate loss
+                print(f'Val loss archi 2 = {loss.item()}')
+                
+                valLoss_2 += loss.item() # item() gives the value in a tensor
+    
+            # train model 3 with 1/4 a batch at a time ------------------
+            for jj in range(4):
+                inputs = inputs_tmp[64*jj:64*jj+64,:,:,:,:].to(device3)
+                labels = labels_tmp[64*jj:64*jj+64].to(device3)
+                outputs = model_3(inputs) # forward pass
+            
+                loss = criterion(outputs[:,0], labels) # calculate loss
+                print(f'Val loss archi 3 = {loss.item()}')
+                
+                valLoss_3 += loss.item() # item() gives the value in a tensor
+            
+        allValLoss_1[epoch] = valLoss_1/len(val_dataloader)
+        allValLoss_2[epoch] = valLoss_2/len(val_dataloader)
+        allValLoss_3[epoch] = valLoss_3/len(val_dataloader)
         
-        np.savetxt(out_path + '/allValLoss.txt',allValLoss)
-        np.savetxt(out_path + '/allTrainLoss.txt',allTrainLoss)
+        np.savetxt(out_path_1 + '/allValLoss.txt',allValLoss_1)
+        np.savetxt(out_path_2 + '/allValLoss.txt',allValLoss_2)
+        np.savetxt(out_path_3 + '/allValLoss.txt',allValLoss_3)
         
-        if allValLoss[epoch] < bestValLoss:
-            print(f'Best seen validation performance ({bestValLoss} -> {allValLoss[epoch]}), saving...')
-            torch.save(model_3.state_dict(),out_path + bestValLossNetFileName)
-            np.savetxt(out_path + '/bestEpochNum.txt',np.array([epoch]))
-            bestValLoss = allValLoss[epoch]
+        np.savetxt(out_path_1 + '/allTrainLoss.txt',allTrainLoss_1)
+        np.savetxt(out_path_2 + '/allTrainLoss.txt',allTrainLoss_2)
+        np.savetxt(out_path_3 + '/allTrainLoss.txt',allTrainLoss_3)
+        
+        if allValLoss_1[epoch] < bestValLoss_1:
+            print(f'Best seen validation performance archi 1 ({bestValLoss_1} -> {allValLoss_1[epoch]}), saving...')
+            torch.save(model_1.state_dict(),out_path_1 + bestValLossNetFileName)
+            np.savetxt(out_path_1 + '/bestEpochNum.txt',np.array([epoch]))
+            bestValLoss_1 = allValLoss_1[epoch]
+            
+        if allValLoss_2[epoch] < bestValLoss_2:
+            print(f'Best seen validation performance archi 2 ({bestValLoss_2} -> {allValLoss_2[epoch]}), saving...')
+            torch.save(model_2.state_dict(),out_path_2 + bestValLossNetFileName)
+            np.savetxt(out_path_2 + '/bestEpochNum.txt',np.array([epoch]))
+            bestValLoss_2 = allValLoss_2[epoch]
+            
+        if allValLoss_3[epoch] < bestValLoss_3:
+            print(f'Best seen validation performance archi 3 ({bestValLoss_3} -> {allValLoss_3[epoch]}), saving...')
+            torch.save(model_3.state_dict(),out_path_3 + bestValLossNetFileName)
+            np.savetxt(out_path_3 + '/bestEpochNum.txt',np.array([epoch]))
+            bestValLoss_3 = allValLoss_3[epoch]
     
     # checkpointing at the end of every epoch
-    torch.save(model_3.state_dict(),out_path + currModelFilename)
-    np.savetxt(f'{out_path}lastCompletedEpoch.txt',np.asarray([epoch]))
-    np.savetxt(f'{out_path}randomState.txt',torch.get_rng_state().numpy())
+    torch.save(model_1.state_dict(),out_path_1 + currModelFilename)
+    torch.save(model_2.state_dict(),out_path_2 + currModelFilename)
+    torch.save(model_3.state_dict(),out_path_3 + currModelFilename)
+    
+    np.savetxt(f'{out_path_1}lastCompletedEpoch.txt',np.asarray([epoch]))
+    np.savetxt(f'{out_path_1}randomState.txt',torch.get_rng_state().numpy())
+    
+    np.savetxt(f'{out_path_2}lastCompletedEpoch.txt',np.asarray([epoch]))
+    np.savetxt(f'{out_path_2}randomState.txt',torch.get_rng_state().numpy())
+    
+    np.savetxt(f'{out_path_3}lastCompletedEpoch.txt',np.asarray([epoch]))
+    np.savetxt(f'{out_path_3}randomState.txt',torch.get_rng_state().numpy())
 
+    model_1 = model_1.train()
+    model_2 = model_2.train()
     model_3 = model_3.train()
+
             
     print(f'Epoch = {epoch} finished')
 print('Finished Training')
