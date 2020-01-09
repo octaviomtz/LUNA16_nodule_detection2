@@ -62,21 +62,20 @@ if (not os.path.exists(out_path_2)) & (out_path_2 != ""):
 if (not os.path.exists(out_path_3)) & (out_path_3 != ""): 
     os.makedirs(out_path_3)
     
-fold_k = 2*fold_k # to keep pairings
+# fold_k = 2*fold_k # to keep pairings
 cand_path = np.loadtxt('data_path.txt','str').item()
 
-train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k) and (x!=fold_k+1)]]
+train_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x!=fold_k)]]
 train_subset_folders = [cand_path + train_subset_folders[i] for i in range(len(train_subset_folders))]
 
-test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k) or (x==fold_k+1)]]
+test_subset_folders = [f'subset{i}/' for i in [x for x in range(10) if (x==fold_k)]]
 test_subset_folders = [cand_path + test_subset_folders[i] for i in range(len(test_subset_folders))]
 
 # set the validation subset
-val_subset_folders = [train_subset_folders[fold_k-2],train_subset_folders[fold_k-1]]
+val_subset_folders = [train_subset_folders[fold_k-1]]
 
 # and then remove this from the training subsets
 train_subset_folders.remove(val_subset_folders[0]) 
-train_subset_folders.remove(val_subset_folders[1])
 
 #print(*(train_subset_folders + ['\n']),sep='\n')
 #print(*(val_subset_folders + ['\n']),sep='\n')
@@ -262,10 +261,11 @@ class lidcCandidateLoader(Dataset):
         cand_df = pd.DataFrame(columns=['seriesuid','coordX','coordY','coordZ','class','diameter_mm','filename'])
         for fldr in data_folders:
             csvfiles = f'cand_df_{fldr[-2]}.csv'
-#            csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
-            
+            # csvfiles = [f for f in os.listdir(fldr) if os.path.isfile(os.path.join(fldr, f)) if '.csv' in f][0]
+            #print(f'(265) fldr = {fldr + csvfiles}')#OMM
             cand_df = cand_df.append(pd.read_csv(fldr + csvfiles),ignore_index=True,sort=False)
-            
+        
+        #print(f'(269) {cand_df["filename"].head().values}')#OMM    
         true_df = cand_df.loc[cand_df['class']==1].reset_index(drop=True)
         false_df = cand_df.loc[cand_df['class']==0].reset_index(drop=True)
         
@@ -323,22 +323,28 @@ class lidcCandidateLoader(Dataset):
             cand_df = true_df_aug.append(false_df_aug,ignore_index=False,sort=False).reset_index(drop=True)  
 
         # shuffle repeatably
+        #print(f'(326) {cand_df["filename"].head().values}')#OMM
         cand_df = cand_df.sample(frac=1,replace=False,random_state=fold_k).reset_index(drop=True)
-        
+        #print(f'(328) {cand_df["filename"].head().values}')
         # check that the paths to the folders are correct, and replace if not (not the best code!)
         path_from_df = os.path.split(os.path.split(cand_df['filename'][0])[0])[0]
         path_from_user = os.path.split(os.path.split(data_folders[0])[0])[0]
-        if path_from_df != path_from_user:
-            cand_df['filename'] = cand_df['filename'].str.replace(path_from_df,path_from_user)
-             
+        # print(f'paths:\n {path_from_df},\n {path_from_user}') # OMM
+        # print(f'(336) {cand_df["filename"].head(15).values}') # OMM     
+        if path_from_df != path_from_user: # OMM
+            # cand_df['filename'] = cand_df['filename'].str.replace(path_from_df,path_from_user) # OMM
+            cand_df['filename'] = cand_df['filename'].str.replace('/media/se14/DATA_LACIE/LUNA16/candidates',path_from_user) # OMM
+
         self.cand_df = cand_df
         
     def __len__(self):
-#        return 1000
+        # return 1000
         return len(self.cand_df)
     
     def __getitem__(self,idx):
+        
         currFileName = self.cand_df.iloc[idx]['filename']
+        # print(f'currFileName = {currFileName}') #OMM
         currLabel = self.cand_df.iloc[idx]['class']
         currPatch = np.fromfile(currFileName,dtype='int16').astype('float32')
         currPatch = currPatch.reshape((80,80,80))
@@ -406,8 +412,8 @@ class lidcCandidateLoader(Dataset):
                               20+transFact[1]:60+transFact[1],
                               20+transFact[2]:60+transFact[2]]
         
-#        currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
-#        currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
+        # currPatch1 = torch.from_numpy(currPatch[10:-10,10:-10,10:-10][None,:,:,:])
+        # currPatch2 = torch.from_numpy(currPatch[5:-5,5:-5,5:-5][None,:,:,:])
         currPatch3 = torch.from_numpy(currPatch[None,:,:,:])
         
         # output results
@@ -433,7 +439,7 @@ optimizer_2 = optim.Adam(model_2.parameters(),lr = 1e-5)
 optimizer_3 = optim.Adam(model_3.parameters(),lr = 6e-6)
 
 ctr = 0
-num_epochs = 2
+num_epochs = 1
 epoch_list = np.array(list(range(num_epochs)))
 
 bestValLoss_1 = 1e6
@@ -527,7 +533,8 @@ print(f'model_1.training = {model_1.training}')
 print(f'model_2.training = {model_2.training}')
 print(f'model_3.training = {model_3.training}')
 
-#%%               
+#%%   
+# assert(1==2)
 for epoch in epoch_list:
 
     print(f'Epoch = {epoch}')
